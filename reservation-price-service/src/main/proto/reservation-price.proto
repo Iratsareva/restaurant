@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "org.example.reservationprice";
+option java_outer_classname = "ReservationPriceProto";
+
+service ReservationPriceService {
+  // Метод расчета цены (основной)
+  rpc CalculatePrice (PriceRequest) returns (PriceResponse) {}
+  // Метод обновления цены (из самостоятельного задания №8)
+  rpc UpdatePrice (UpdatePriceRequest) returns (PriceResponse) {}
+}
+
+// Запрос на расчет цены
+message PriceRequest {
+  int64 reservation_id = 1;
+  int32 number_of_guests = 2;
+  string table_type = 3;  // Добавлено из самостоятельного задания №8 (расширение модели)
+  int32 duration_hours = 4;  // Продолжительность в часах
+}
+
+// Ответ с ценой
+message PriceResponse {
+  int64 reservation_id = 1;
+  double price = 2;
+  string verdict = 3;  // "AFFORDABLE" или "EXPENSIVE"
+}
+
+// Запрос на обновление цены
+message UpdatePriceRequest {
+  int64 reservation_id = 1;
+  int32 new_number_of_guests = 2;
+}

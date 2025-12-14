@@ -1,0 +1,302 @@
+Построение GraphQL API с помощью DGS Framework
+1. Введение
+Мы возьмем наш существующий, зрелый REST API и расширим его, добавив параллельный GraphQL-интерфейс с помощью мощного фреймворка DGS (Domain Graph Service) от Netflix. Вы увидите, как подход Contract First, который мы уже освоили для REST, элегантно применяется и для GraphQL, создавая единый, надежный источник правды для всех интерфейсов вашего сервиса.
+Зачем рядом с идеально работающим REST API нам нужен еще и GraphQL? Рассмотрим два классических сценария:
+Проблема недостаточной выборки (Under-fetching)
+Представьте, что для отображения экрана "Автор и его книги" мобильному приложению нужно сначала сделать запрос GET /api/authors/1, а затем, получив ID автора, сделать второй запрос GET /api/books?authorId=1. Это два сетевых запроса, что медленно и неэффективно.
+Решение с GraphQL
+Клиент может отправить один запрос, в котором сразу попросит автора и список его книг, получив все необходимые данные за один раз.
+Проблема избыточной выборки (Over-fetching)
+Для отображения простого списка книг в мобильном приложении нужны только их названия. Однако наш REST-эндпоинт GET /api/books возвращает полные объекты книг, включая ISBN, автора, и т.д. Клиент получает массу ненужных данных, впустую тратя трафик.
+Решение с GraphQL
+Клиент может указать, что из всех полей объекта Book ему нужно только поле title, и сервер вернет только его.
+GraphQL дает клиентам контроль над получаемыми данными, что делает его идеальным выбором для современных фронтенд-приложений и мобильных клиентов.
+Необходимое ПО и настройка среды:
+Настройка пройдет в четыре этапа, которые заложат правильный архитектурный фундамент.
+Добавить зависимость DGS (модуль demo-rest) 
+Откройте pom.xml модуля demo-rest и добавьте зависимость DGS Framework:
+<dependency>
+            <groupId>com.netflix.graphql.dgs</groupId>
+            <artifactId>graphql-dgs-spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.netflix.graphql.dgs</groupId>
+            <artifactId>graphql-dgs-subscriptions-websockets-autoconfigure</artifactId>
+ </dependency>
+Далее добавьте менеджер зависимостей для версий:
+<dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.netflix.graphql.dgs</groupId>
+                <artifactId>graphql-dgs-platform-dependencies</artifactId>
+                <version>8.5.6</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+Создать схему GraphQL (модуль books-api-contract)
+Контракт должен жить в модуле контракта.
+В проекте books-api-contract создайте структуру папок - src/main/resources/graphql-client/
+Внутри создайте файл schema.graphqls.
+Включить схему в сборку контракта (модуль books-api-contract) 
+Мы должны явно указать Maven, что файл схемы — это ресурс, который нужно упаковать в итоговый .jar файл. Откройте pom.xml проекта books-api-contract и добавьте секцию <resources>:
+<build>
+    <resources>
+        <resource>
+            <directory>src/main/resources</directory>
+            <includes>
+                <include>**/*.graphqls</include>
+            </includes>
+        </resource>
+    </resources>
+    <plugins>
+        <!-- ... ваши существующие плагины ... -->
+    </plugins>
+</build>
+Настроить DGS на поиск схемы в контракте (модуль demo-rest)
+Теперь научим наш сервис находить схему внутри подключенного .jar файла контракта. Откройте application.properties в demo-rest/src/main/resources/ и добавьте строку:
+# Указываем DGS искать схемы в classpath, включая JAR-файлы зависимостей
+dgs.graphql.schema-locations=classpath*:/graphql-client/**/*.graphqls
+На этом настройка завершена
+2. Теория
+GraphQL
+GraphQL — это язык запросов для API и среда выполнения для обработки этих запросов. В отличие от REST, где структура ответа диктуется сервером, в GraphQL структуру ответа определяет клиент. Цель - предоставить клиентам возможность запрашивать именно те данные, которые им нужны, в одном запросе, и получать их в предсказуемой структуре.
+Основы схемы GraphQL (Schema Definition Language - SDL)
+type
+Определяет структуру объекта. Аналог нашего DTO или класса.
+scalar
+Базовые типы данных: Int, Float, String, Boolean, ID.
+Query
+Специальный тип, который определяет все точки входа для запросов на чтение данных.
+Mutation
+Специальный тип, который определяет все точки входа для операций изменения данных.
+input
+Определяет структуру входных данных для мутаций, аналог *Request DTO.
+Ключевые компоненты DGS Framework
+@DgsComponent
+Аналог @RestController. Помечает класс как контейнер для обработчиков GraphQL-запросов.
+@DgsQuery
+Связывает метод Java с полем в типе Query в схеме.
+@DgsMutation
+Связывает метод Java с полем в типе Mutation в схеме.
+@DgsData
+Привязывает метод к любому полю в любом типе. Критически важна для разрешения вложенных объектов.
+@InputArgument
+Внедряет аргумент из GraphQL-запроса в параметр метода Java.
+3. Практический разбор
+Мы с нуля создадим GraphQL API, который полностью дублирует функциональность нашего REST API, переиспользуя существующие сервисы.
+Определение контракта — schema.graphqls
+Заполните файл books-api-contract/src/main/resources/graphql-client/schema.graphqls следующим содержимым. Это будет единственный источник правды о нашем GraphQL API.
+type Author {
+    id: ID!
+    firstName: String
+    lastName: String
+}
+
+type Book {
+    id: ID!
+    title: String
+    isbn: String
+    createdAt: String
+    author: Author
+}
+
+type BookPage {
+    content: [Book]
+    pageNumber: Int
+    pageSize: Int
+    totalElements: Int
+    totalPages: Int
+    last: Boolean
+}
+
+type Query {
+    authors: [Author]
+    authorById(id: ID!): Author
+
+    books(authorId: ID, page: Int = 0, size: Int = 10): BookPage
+    bookById(id: ID!): Book
+}
+
+input AuthorInput {
+    firstName: String!
+    lastName: String!
+}
+
+input BookInput {
+    title: String!
+    isbn: String!
+    authorId: ID!
+}
+
+input UpdateBookInput {
+    title: String!
+    isbn: String!
+}
+
+type Mutation {
+    createAuthor(input: AuthorInput!): Author
+    updateAuthor(id: ID!, input: AuthorInput!): Author
+    deleteAuthor(id: ID!): ID
+
+    createBook(input: BookInput!): Book
+    updateBook(id: ID!, input: UpdateBookInput!): Book
+    deleteBook(id: ID!): ID
+}
+Реализация обработчиков (Data Fetchers)
+Теперь, когда контракт готов, напишем код реализации в модуле demo-rest.
+В модуле demo-rest создайте новый пакет graphql.
+Внутри создайте два класса: AuthorDataFetcher и BookDataFetcher.
+@DgsComponent
+public class AuthorDataFetcher {
+
+    private final AuthorService authorService;
+
+    public AuthorDataFetcher(AuthorService authorService) {
+        this.authorService = authorService;
+    }
+
+    @DgsQuery
+    public List<AuthorResponse> authors() {
+        return authorService.findAll();
+    }
+
+    @DgsQuery
+    public AuthorResponse authorById(@InputArgument Long id) {
+        return authorService.findById(id);
+    }
+
+    @DgsMutation
+    public AuthorResponse createAuthor(@InputArgument("input") Map<String, String> input) {
+        AuthorRequest request = new AuthorRequest(input.get("firstName"), input.get("lastName"));
+        return authorService.create(request);
+    }
+    
+    @DgsMutation
+    public AuthorResponse updateAuthor(@InputArgument Long id, @InputArgument("input") Map<String, String> input) {
+        AuthorRequest request = new AuthorRequest(input.get("firstName"), input.get("lastName"));
+        return authorService.update(id, request);
+    }
+
+    @DgsMutation
+    public Long deleteAuthor(@InputArgument Long id) {
+        authorService.delete(id);
+        return id;
+    }
+}
+
+@DgsComponent
+public class BookDataFetcher {
+
+    private final BookService bookService;
+
+    public BookDataFetcher(BookService bookService) {
+        this.bookService = bookService;
+    }
+
+    @DgsQuery
+    public BookResponse bookById(@InputArgument Long id) {
+        return bookService.findBookById(id);
+    }
+
+    @DgsQuery
+    public PagedResponse<BookResponse> books(@InputArgument Long authorId, @InputArgument int page, @InputArgument int size) {
+        return bookService.findAllBooks(authorId, page, size);
+    }
+    
+    // Этот метод разрешает вложенное поле 'author' внутри типа 'Book'
+    @DgsData(parentType = "Book", field = "author")
+    public AuthorResponse author(DataFetchingEnvironment dfe) {
+        BookResponse book = dfe.getSource();
+        return book.getAuthor();
+    }
+
+    @DgsMutation
+    public BookResponse createBook(@InputArgument("input") Map<String, Object> input) {
+        BookRequest request = new BookRequest(
+                (String) input.get("title"),
+                (String) input.get("isbn"),
+                Long.parseLong(input.get("authorId").toString())
+        );
+        return bookService.createBook(request);
+    }
+    
+    @DgsMutation
+    public BookResponse updateBook(@InputArgument Long id, @InputArgument("input") Map<String, String> input) {
+        UpdateBookRequest request = new UpdateBookRequest(
+                input.get("title"),
+                input.get("isbn")
+        );
+        return bookService.updateBook(id, request);
+    }
+
+    @DgsMutation
+    public Long deleteBook(@InputArgument Long id) {
+        bookService.deleteBook(id);
+        return id;
+    }
+}
+
+Далее убедитесь, что у вас в main сервиса подключены пакеты для сканирования пакетов:
+@SpringBootApplication(
+        scanBasePackages = {"edu.rutmiit.demo.demorest", "edu.rutmiit.demo.booksapicontract"},
+        exclude = {DataSourceAutoConfiguration.class}
+)
+@EnableHypermediaSupport(type = EnableHypermediaSupport.HypermediaType.HAL)
+public class DemoRestApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(DemoRestApplication.class, args);
+    }
+
+}
+Тестирование API с помощью GraphiQL
+1.	Пересоберите весь проект (mvn clean install).
+2.	Запустите DemoRestApplication.
+3.	Откройте в браузере http://localhost:8080/graphiql.
+4.	Выполните запрос на чтение (Query):
+query GetBooksAndAuthors {
+  authors {
+    id
+    firstName
+  }
+  books(page: 0, size: 2) {
+    content {
+      id
+      title
+      author {
+        id
+        firstName
+      }
+    }
+    totalPages
+  }
+}
+1.	Выполните запрос на изменение (Mutation):
+mutation CreateNewAuthor {
+  createAuthor(input: {
+    firstName: "Александр",
+    lastName: "Пушкин"
+  }) {
+    id
+    firstName
+  }
+}
+Вы увидите, что API работает, как и ожидалось.
+4. Задания для самостоятельной работы
+Теперь ваша очередь расширить функционал нашего GraphQL API. 
+Работа с жанрами
+Добавьте в API возможность работать с жанрами книг.
+Контракт:
+В файле schema.graphqls добавьте поле genre: String в тип Book.
+Добавьте необязательный аргумент genreFilter: String в запрос books.
+Создайте мутацию updateBookGenre(id: ID!, genre: String!): Book.
+Реализация:
+В BookResponse.java добавьте поле genre (понадобится также обновить конструктор, equals/hashCode).
+В InMemoryStorage добавьте жанры для существующих книг.
+В BookService модифицируйте findAllBooks, чтобы он поддерживал фильтрацию по жанру.
+В BookService создайте новый метод updateBookGenre(Long id, String genre).
+В BookDataFetcher реализуйте логику для нового фильтра и новой мутации.
+Тестирование: 
+Напишите GraphQL-запрос, который фильтрует книги по жанру, и мутацию, которая меняет жанр у книги.

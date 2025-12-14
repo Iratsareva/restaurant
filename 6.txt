@@ -1,0 +1,354 @@
+Асинхронное взаимодействие микросервисов с помощью RabbitMQ
+1. Введение
+До сих пор наши сервисы взаимодействовали синхронно через REST API. Когда клиент вызывал POST /api/books, он ждал, пока сервис полностью обработает запрос, и только потом получал ответ. Но что, если в рамках создания книги нужно выполнить долгую или необязательную операцию? Например, отправить уведомление, пересчитать статистику или проиндексировать книгу для поиска. Если мы будем делать все это в рамках одного запроса, клиент будет ждать неоправданно долго, а если сервис статистики временно недоступен, то и создание книги завершится ошибкой.
+В этой работе мы познакомимся с асинхронным, событийно-ориентированным взаимодействием с помощью брокера сообщений RabbitMQ. Мы научим наш основной сервис публиковать события (например, «Книга создана») и создадим новый, независимый микросервис, который будет на эти события реагировать.
+Асинхронное взаимодействие — это фундамент современных распределенных систем. Оно позволяет:
+Повысить отказоустойчивость. Если Сервис Б (например, сервис отчетов) временно недоступен, Сервис А (сервис книг) продолжит работать как ни в чем не бывало. Он отправит событие в RabbitMQ, и брокер доставит его, как только Сервис Б вернется в строй.
+Улучшить отзывчивость. Основной сервис может быстро ответить клиенту ("Ваша книга создается!"), а все долгие операции (обработка, анализ, уведомления) будут выполнены в фоновом режиме другими сервисами.
+Обеспечить слабую связанность (decoupling). Сервис-издатель ничего не знает о том, кто и как будет обрабатывать его события. Вы можете добавлять новых подписчиков (например, сервис для поисковой индексации), не внося никаких изменений в исходный сервис.
+Представьте, что при создании новой книги в нашей библиотеке (demo-rest) нам нужно выполнить несколько дополнительных действий:
+1.	Отправить email-уведомление подписчикам.
+2.	Пересчитать статистику по авторам.
+3.	Добавить запись в журнал аудита.
+Если бы мы делали это синхронно, процесс создания книги мог бы занять несколько секунд, и любой сбой (например, недоступность почтового сервера) привел бы к ошибке всей операции.
+Асинхронный подход решает эту проблему. Наш demo-rest сервис, создав книгу, просто публикует событие "Книга создана" в общую шину сообщений и немедленно отвечает пользователю. А уже другие, независимые сервисы (Уведомлений, Статистики, Аудита) подписываются на это событие и выполняют свою работу в фоновом режиме. Это делает систему быстрее и надежнее.
+Необходимое ПО и настройка среды:
+1.	Проект-реализация (demo-rest), готовый после предыдущего занятия.
+2.	Docker Desktop, установленный и запущенный на вашем компьютере.
+Шаги по запуску RabbitMQ. RabbitMQ — это отдельный сервер. Самый простой способ его запустить — использовать готовый Docker-контейнер.
+1.	Откройте терминал (командную строку).
+2.	Выполните следующую команду. Она скачает образ RabbitMQ с панелью управления и запустит его в фоновом режиме.
+docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+Где:
+-p 5672:5672
+Пробрасывает стандартный порт протокола AMQP для подключения наших приложений.
+-p 15672:15672
+Пробрасывает порт для веб-интерфейса управления.
+3.	Проверьте, что RabbitMQ успешно запустился:
+1.	Откройте в браузере http://localhost:15672.
+2.	Войдите, используя логин guest и пароль guest.
+Вы должны увидеть панель управления RabbitMQ.
+2. Теория
+Брокер сообщений (Message Broker)
+Брокер сообщений — это программа-посредник, которая управляет передачей сообщений между различными приложениями (сервисами). Сервисы не общаются друг с другом напрямую, а только через брокера. Его задача - обеспечить надежную, гарантированную и асинхронную доставку сообщений. Он выступает в роли "почтового отделения" для ваших микросервисов.
+Ключевые компоненты
+Producer (Издатель). Приложение, которое отправляет (публикует) сообщения. В нашем случае это будет demo-rest.
+Consumer (Подписчик/Потребитель). Приложение, которое получает (потребляет) сообщения. Мы создадим для этой цели новый сервис.
+Queue (Очередь). Именованный буфер для хранения сообщений. Сообщения лежат в очереди до тех пор, пока их не заберет Consumer.
+Exchange (Обменник). "Маршрутизатор" сообщений. Producer всегда отправляет сообщение в Exchange. Exchange, в свою очередь, решает, в какие Queues это сообщение направить. Это позволяет реализовывать сложные сценарии маршрутизации.
+Binding (Связка). Правило, которое связывает Exchange и Queue.
+Routing Key (Ключ маршрутизации). Метка, которую Producer присваивает сообщению. Exchange использует этот ключ, чтобы, согласно Binding, направить сообщение в нужную очередь.
+Поток сообщения будет идти так - Producer -> Exchange -> (match routing key with binding) -> Queue -> Consumer.
+Паттерн Publish/Subscribe ("Издатель-Подписчик")
+Это один из самых распространенных паттернов в событийно-ориентированной архитектуре. Producer публикует событие, не зная и не заботясь о том, кто его получит. Один или несколько Consumer-ов могут подписаться на получение этих событий.
+В RabbitMQ это реализуется с помощью Fanout Exchange. Такой обменник игнорирует routing key и просто доставляет копию каждого полученного сообщения во все очереди, которые с ним связаны. Это идеально подходит для широковещательных событий, например, "Система уходит на перезагрузку" или "Создан новый объект".
+Разделяемый контракт на события
+Так же, как мы вынесли DTO и интерфейсы для REST API в отдельный модуль books-api-contract, мы должны вынести классы-события в новый, отдельный модуль.
+Почему? Чтобы избежать сильной связанности. Если бы класс события BookCreatedEvent находился в demo-rest, то нашему новому сервису-подписчику пришлось бы подключить demo-rest как зависимость целиком, со всеми его контроллерами и лишними DTO. Создавая маленький, легковесный модуль events-contract, мы определяем "общий язык" для всех сервисов, которые обмениваются событиями, не связывая их реализации.
+3. Практический разбор 
+Мы реализуем следующий флоу:
+1.	demo-rest сервис при успешном создании новой книги публикует событие BookCreatedEvent в RabbitMQ.
+2.	Новый сервис, audit-service, подписывается на эти события и выводит в лог сообщение о том, что "книга добавлена".
+Часть А. Создание разделяемого контракта на события
+1.	Создаем новый Java maven-проект. Создайте новый, пустой Java maven проект с именем events-contract.
+2.	pom.xml для events-contract. Приведите его к следующему виду. Нам здесь не нужны никакие зависимости.
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>edu.rutmiit.demo</groupId>
+    <artifactId>events-contract</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+</project>
+3.	Создаем DTO события. Внутри events-contract создайте класс BookCreatedEvent.
+events/BookCreatedEvent
+
+package edu.rutmiit.demo.events;
+import java.io.Serializable;
+
+public record BookCreatedEvent(
+        Long bookId,
+        String title,
+        String authorFullName
+) implements Serializable {}
+
+4.	Собираем артефакт, как собирали контракт. 
+ 
+ 
+Далее Build -> Build artifact
+ 
+ 
+Часть Б: Модификация demo-rest (Producer)
+1.	Добавляем зависимости. Откройте pom.xml проекта demo-rest и добавьте зависимость на RabbitMQ и собранный артефакт для событий (по аналогии с артефактом контрактом, который скопирован в папку lib).
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-amqp</artifactId>
+</dependency>
+<dependency>
+    <groupId>edu.rut-miit.demo</groupId>
+    <artifactId>events-contract</artifactId>
+    <version>1.0</version>
+    <scope>system</scope>
+    <systemPath>${project.basedir}/lib/events-contract.jar</systemPath>
+</dependency>
+
+2.	В application.properties проекта demo-rest добавьте настройки для подключения к RabbitMQ.
+spring.rabbitmq.host=localhost
+spring.rabbitmq.port=5672
+spring.rabbitmq.username=guest
+spring.rabbitmq.password=guest
+
+3.	Создаем конфигурацию RabbitMQ. Создадим класс, который будет декларировать нашу Exchange.
+config/RabbitMQConfig
+
+import org.springframework.amqp.core.TopicExchange;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class RabbitMQConfig {
+    public static final String EXCHANGE_NAME = "books-exchange";
+    public static final String ROUTING_KEY_BOOK_CREATED = "book.created";
+
+    @Bean
+    public TopicExchange booksExchange() {
+        return new TopicExchange(EXCHANGE_NAME);
+    }
+}
+
+
+4.	Отправляем событие. Модифицируем BookService для отправки события после создания книги. (Изменения помечены желтым)
+5.	package edu.rutmiit.demo.demorest.service;
+
+import edu.rutmiit.demo.booksapicontract.dto.*;
+import edu.rutmiit.demo.booksapicontract.exception.IsbnAlreadyExistsException;
+import edu.rutmiit.demo.booksapicontract.exception.ResourceNotFoundException;
+import edu.rutmiit.demo.demorest.config.RabbitMQConfig;
+import edu.rutmiit.demo.demorest.storage.InMemoryStorage;
+import edu.rutmiit.demo.events.BookCreatedEvent;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Stream;
+
+@Service
+public class BookService {
+
+    private final InMemoryStorage storage;
+    private final AuthorService authorService;
+    private final RabbitTemplate rabbitTemplate; // Внедряем RabbitTemplate
+
+    public BookService(InMemoryStorage storage, @Lazy AuthorService authorService, RabbitTemplate rabbitTemplate) {
+        this.storage = storage;
+        this.authorService = authorService;
+        this.rabbitTemplate = rabbitTemplate;
+    }
+
+    public BookResponse findBookById(Long id) {
+        return Optional.ofNullable(storage.books.get(id))
+                .orElseThrow(() -> new ResourceNotFoundException("Book", id));
+    }
+
+    public PagedResponse<BookResponse> findAllBooks(Long authorId, int page, int size) {
+        // Получаем стрим всех книг
+        Stream<BookResponse> booksStream = storage.books.values().stream()
+                .sorted((b1, b2) -> b1.getId().compareTo(b2.getId())); // Сортируем для консистентности
+
+        // Фильтруем, если указан authorId
+        if (authorId != null) {
+            booksStream = booksStream.filter(book -> book.getAuthor() != null && book.getAuthor().getId().equals(authorId));
+        }
+
+        List<BookResponse> allBooks = booksStream.toList();
+
+        // Выполняем пагинацию
+        int totalElements = allBooks.size();
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+        int fromIndex = page * size;
+        int toIndex = Math.min(fromIndex + size, totalElements);
+
+        List<BookResponse> pageContent = (fromIndex > toIndex) ? List.of() : allBooks.subList(fromIndex, toIndex);
+
+        return new PagedResponse<>(pageContent, page, size, totalElements, totalPages, page >= totalPages - 1);
+    }
+
+    public BookResponse createBook(BookRequest request) {
+        // Проверка на существующий ISBN
+        validateIsbn(request.isbn(), null);
+
+        // Находим автора, если не найден - будет исключение
+        AuthorResponse author = authorService.findById(request.authorId());
+
+        long id = storage.bookSequence.incrementAndGet();
+        var book = new BookResponse(
+                id,
+                request.title(),
+                request.isbn(),
+                author,
+                LocalDateTime.now()
+        );
+        storage.books.put(id, book);
+
+        // Тут публикуем событие
+
+        BookCreatedEvent event = new BookCreatedEvent(
+                book.getId(),
+                book.getTitle(),
+                author.getFirstName() + " " + author.getLastName()
+        );
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_NAME, RabbitMQConfig.ROUTING_KEY_BOOK_CREATED, event);
+
+
+        return book;
+    }
+
+    public BookResponse updateBook(Long id, UpdateBookRequest request) {
+        BookResponse existingBook = findBookById(id); // Проверяем, что книга существует
+        validateIsbn(request.isbn(), id); // Проверяем ISBN, исключая текущую книгу
+
+        var updatedBook = new BookResponse(
+                id,
+                request.title(),
+                request.isbn(),
+                existingBook.getAuthor(), // Автор не меняется
+                existingBook.getCreatedAt() // Дата создания не меняется
+        );
+        storage.books.put(id, updatedBook);
+        return updatedBook;
+    }
+
+    public void deleteBook(Long id) {
+        findBookById(id); // Проверяем, что книга существует
+        storage.books.remove(id);
+    }
+
+    public void deleteBooksByAuthorId(Long authorId) {
+        // Находим ID всех книг, которые нужно удалить
+        List<Long> bookIdsToDelete = storage.books.values().stream()
+                .filter(book -> book.getAuthor() != null && book.getAuthor().getId().equals(authorId))
+                .map(BookResponse::getId)
+                .toList();
+
+        // Удаляем их из хранилища
+        bookIdsToDelete.forEach(storage.books::remove);
+    }
+
+    private void validateIsbn(String isbn, Long currentBookId) {
+        storage.books.values().stream()
+                .filter(book -> book.getIsbn().equalsIgnoreCase(isbn))
+                .filter(book -> !book.getId().equals(currentBookId)) // Игнорируем книгу, которую обновляем
+                .findAny()
+                .ifPresent(book -> {
+                    throw new IsbnAlreadyExistsException(isbn);
+                });
+    }
+}
+
+Часть В: Создание audit-service (Consumer)
+1.	Создаем проект. Перейдите на start.spring.io и создайте новый проект audit-service. Добавьте зависимости:
+1.	Spring for RabbitMQ
+ 
+2.	Добавляем контракт. Откройте pom.xml нового проекта и вручную добавьте зависимость на наш events-contract. Создаем папку lib, копируем Jar и вставляем в pom.xml
+<dependency>
+    <groupId>edu.rut-miit.demo</groupId>
+    <artifactId>events-contract</artifactId>
+    <version>1.0</version>
+    <scope>system</scope>
+    <systemPath>${project.basedir}/lib/events-contract.jar</systemPath>
+</dependency>
+
+3.	Настраиваем подключение. В application.properties укажите те же настройки, что и для demo-rest.
+spring.application.name=audit-service
+server.port=8082 # Чтобы не конфликтовать с demo-rest
+
+spring.rabbitmq.host=localhost
+spring.rabbitmq.port=5672
+spring.rabbitmq.username=guest
+spring.rabbitmq.password=guest
+
+4.	Создаем слушателя. Создадим компонент, который будет слушать очередь и обрабатывать события. В пакете listeners:
+listeners/BookEventListener
+
+package edu.rutmiit.demo.audit_service.listeners;
+
+import edu.rutmiit.demo.events.BookCreatedEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.annotation.Exchange;
+import org.springframework.amqp.rabbit.annotation.Queue;
+import org.springframework.amqp.rabbit.annotation.QueueBinding;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.stereotype.Component;
+
+@Component
+public class BookEventListener {
+
+    private static final Logger log = LoggerFactory.getLogger(BookEventListener.class);
+
+    @RabbitListener(bindings = @QueueBinding(
+            value = @Queue(name = "notification-queue", durable = "true"),
+            exchange = @Exchange(name = "books-exchange", type = "topic"),
+            key = "book.created"
+    ))
+    public void handleBookCreatedEvent(BookCreatedEvent event) {
+        log.info("Received new book event: {}.", event);
+        // Здесь могла бы быть логика аудита или уведомлений
+    }
+}
+
+
+Далее создайте конфигурацию для добавления в доверенные для сериализатора типы наших сообщений:
+listeners/RabbitMQConfig
+
+package edu.rutmiit.demo.audit_service.listeners;
+
+import org.springframework.amqp.support.converter.SimpleMessageConverter;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.List;
+
+@Configuration
+public class RabbitMQConfig {
+
+    @Bean
+    public SimpleMessageConverter messageConverter() {
+        SimpleMessageConverter converter = new SimpleMessageConverter();
+        converter.setAllowedListPatterns(List.of("edu.rutmiit.demo.events.*"));
+        return converter;
+    }
+}
+
+Часть Г: Запуск и проверка
+1.	Запустите audit-service. В его логах вы увидите, что он успешно подключился к RabbitMQ и начал слушать notification-queue.
+2.	Запустите demo-rest.
+3.	С Swagger UI (http://localhost:8080/swagger-ui/index.html , убедитесь что порт demo rest сервиса верный) создайте новую книгу через POST /api/books.
+4.	Проверьте результат. Сразу после успешного создания книги посмотрите в консоль, где запущен audit-service. Вы должны увидеть лог-сообщения о получении события!
+ 
+4. Задания для самостоятельной работы
+–	В events-contract создайте новое событие BookDeletedEvent (достаточно Long bookId).
+–	В demo-rest в BookService.deleteBook публикуйте это событие. Используйте ключ маршрутизации book.deleted.
+–	В audit-service добавьте новый метод-слушатель для BookDeletedEvent, который будет выводить в лог сообщение "Book with id={} was deleted.".
+5. Дополнительные материалы
+Полезные аннотации и классы Spring AMQP:
+RabbitTemplate
+Основной класс для отправки сообщений в RabbitMQ.
+@RabbitListener
+Аннотация, которая помечает метод как слушателя сообщений из указанной очереди. Spring AMQP берет на себя всю "магию" по настройке и получению сообщений.
+TopicExchange, FanoutExchange, DirectExchange
+Разные типы обменников для разных стратегий маршрутизации. Topic — самый гибкий и часто используемый.
+Важное замечание: Сериализация объектов — ключевой момент. По умолчанию Spring Boot AMQP настроен на сериализацию/десериализацию объектов в формат JSON. Это удобно, так как сообщения становятся текстовыми и их легко читать в интерфейсе RabbitMQ. Для этого важно, чтобы у DTO-событий были геттеры или (как в случае с record) публичные поля. Использование Serializable является хорошей практикой, но для JSON-сериализации не строго обязательно.
+

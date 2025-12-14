@@ -1,0 +1,194 @@
+Проектирование контрактов для веб-сервисов
+Цель работы
+Освоить подход к проектированию веб-сервисов, основанный на предварительном проектировании контрактов (contract-first design), применяя лучшие практики проектирования API.
+Вводные
+В реальной разработке важно четко определять границы взаимодействия между компонентами системы. Подход contract-first позволяет:
+•	Четко определить API и DTO до начала реализации
+•	Параллельно вести разработку frontend и backend частей
+•	Улучшить тестируемость компонентов и фиксакцию изменений
+•	Обеспечить слабую связанность между компонентами
+Для описания контрактов необходимо создать отдельный проект, который может содержать – интерфейсы для контроллеров либо их аналогов, DTO, как для запросов, так и ответов, все классы ошибок, включая обработчики.
+Так как вы уже реализовали болью часть вашей системы, теперь вам много понятно с точки зрения требований к контрактам ваших сервисов, поэтому вы можете описать их от отдельных проектов для каждого из них.
+Начнем с простой задачи, описания контрактов для API сервиса, вашего основного.
+Создайте отдельный проект, <название предметной области>-api, из зависимостей могут пригодится Spring Web, Validation, SpringDoc OpenAPI.
+Хороший контракт для REST API состоит из трех столпов: модели данных (DTO), описание эндпоинтов (интерфейсы API) и обработка ошибок (исключения и обработчики).
+DTO и стандартизация ответов
+DTO — это Java record или классы, описывающие структуру JSON-объектов, которыми обмениваются клиент и сервер. Крайне важно иметь отдельный DTO для запроса (Request) и ответа (Response).
+Пример:
+// DTO для запроса на создание книги
+public record BookRequest(
+    @NotBlank String title,
+    @NotBlank String isbn,
+    @NotNull Long authorId
+) {}
+
+// DTO для ответа
+public record BookResponse(
+    Long id,
+    String title,
+    String isbn,
+    AuthorResponse author,
+    LocalDateTime createdAt
+) {}
+
+// Стандартизированный ответ для простых операций или ошибок
+public record StatusResponse(String status, String error) {}
+
+StatusResponse — это мощный паттерн. Он позволяет возвращать унифицированный ответ для операций, где не нужна полная модель (например, при удалении), или для всех видов ошибок.
+Интерфейсы API с документацией OpenAPI 3
+Java-интерфейсы, которые используют аннотации Spring Web и springdoc-openapi для декларативного описания API. Реализующий класс будет обязан выполнить этот контракт. springdoc-openapi автоматически сгенерирует интерактивную документацию (Swagger UI) на основе этих аннотаций.
+Ключевые аннотации:
+@Tag. Группирует эндпоинты по ресурсам (например, "books", "authors").
+@Operation. Описывает, что делает конкретный эндпоинт.
+@ApiResponses. Контейнер для всех возможных ответов.
+@ApiResponse. Описывает один конкретный ответ (например, 200 OK или 404 Not Found).
+@Content и @Schema. Указывают, какой DTO будет в теле ответа и связывают его с примером.
+Пример:
+@Tag(name = "books", description = "API для работы с книгами")
+@ApiResponses({ // Общие ответы для всех эндпоинтов в этом контроллере
+        @ApiResponse(responseCode = "400", description = "Ошибка валидации", content = {
+                @Content(mediaType = "application/json", schema = @Schema(implementation = StatusResponse.class))
+        }),
+        @ApiResponse(responseCode = "500", description = "Внутренняя ошибка сервера", content = {
+                @Content(mediaType = "application/json", schema = @Schema(implementation = StatusResponse.class))
+        })
+})
+public interface BookApi {
+
+    @Operation(summary = "Создать новую книгу")
+    @ApiResponse(responseCode = "201", description = "Книга успешно создана")
+    @PostMapping(value = "/api/books", consumes = MediaType.APPLICATION_JSON_VALUE)
+    BookResponse createBook(@Valid @RequestBody BookRequest request);
+
+    @Operation(summary = "Получить книгу по ID")
+    @ApiResponses({ // Специфичные ответы для этого эндпоинта
+            @ApiResponse(responseCode = "200", description = "Книга найдена"),
+            @ApiResponse(responseCode = "404", description = "Книга не найдена", content = {
+                    @Content(mediaType = "application/json", schema = @Schema(implementation = StatusResponse.class))
+            })
+    })
+    @GetMapping("/api/books/{id}")
+    BookResponse getBook(@PathVariable Long id);
+}
+
+Семантические исключения и глобальный обработчик
+Вместо стандартных исключений (вроде `IllegalArgumentException`) мы создаем свои, несущие бизнес-смысл (`ResourceNotFoundException`).
+Сервисный слой просто выбрасывает исключение `throw new ResourceNotFoundException("Book", id)`, а специальный обработчик решает, что это должно превратиться в ответ `404 Not Found`
+// Семантическое исключение
+public class ResourceNotFoundException extends RuntimeException {
+    public ResourceNotFoundException(String resource, Object id) {
+        super(String.format("%s с ID %s не найден", resource, id));
+    }
+}
+
+// Глобальный обработчик
+@ControllerAdvice
+public class GlobalExceptionHandler {
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<StatusResponse> handleNotFound(ResourceNotFoundException ex) {
+        return ResponseEntity
+            .status(HttpStatus.NOT_FOUND)
+            .body(new StatusResponse("error", ex.getMessage()));
+    }
+    
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<StatusResponse> handleValidation(MethodArgumentNotValidException ex) {
+        // Здесь можно извлечь более детальную информацию об ошибках валидации
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(new StatusResponse("error", "Ошибка валидации: " + ex.getFieldError().getDefaultMessage()));
+    }
+}
+
+Пример
+Создадим с нуля контракт для API библиотеки, следуя лучшим практикам.
+Создайте проект book-library-api со следующей структурой пакетов:
+*.api.dto: для всех DTO.
+*.api.endpoints: для интерфейсов API.
+*.api.exception: для пользовательских исключений и обработчика.
+Где * это ваш базовый пакет.
+Создание DTO
+// Файл: dto/StatusResponse.java
+public record StatusResponse(String status, String error) {}
+
+// Файл: dto/AuthorResponse.java
+public record AuthorResponse(Long id, String fullName) {}
+
+// Файл: dto/BookRequest.java
+public record BookRequest(
+    @NotBlank(message = "Название не может быть пустым")
+    String title,
+    @Size(min = 10, max = 13, message = "ISBN должен содержать от 10 до 13 символов")
+    String isbn,
+    @NotNull Long authorId
+) {}
+
+// Файл: dto/BookResponse.java
+public record BookResponse(
+    Long id,
+    String title,
+    String isbn,
+    AuthorResponse author,
+    LocalDateTime createdAt
+) {}
+
+Проектирование семантических исключений
+// Файл: exception/ResourceNotFoundException.java
+public class ResourceNotFoundException extends RuntimeException {
+    public ResourceNotFoundException(String resourceName, Object resourceId) {
+        super(String.format("%s with id=%s not found", resourceName, resourceId));
+    }
+}
+
+Описание интерфейса API
+// Файл: endpoints/BookApi.java
+@Tag(name = "books", description = "API для работы с книгами")
+public interface BookApi {
+
+    @Operation(summary = "Получить книгу по ID")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Книга найдена"),
+        @ApiResponse(responseCode = "404", description = "Книга не найдена",
+            content = @Content(schema = @Schema(implementation = StatusResponse.class)))
+    })
+    @GetMapping("/api/books/{id}")
+    BookResponse getBook(@PathVariable("id") Long id);
+
+    @Operation(summary = "Создать новую книгу")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "201", description = "Книга успешно создана"),
+        @ApiResponse(responseCode = "400", description = "Невалидный запрос",
+            content = @Content(schema = @Schema(implementation = StatusResponse.class)))
+    })
+    @PostMapping("/api/books")
+    @ResponseStatus(HttpStatus.CREATED)
+    BookResponse createBook(@Valid @RequestBody BookRequest request);
+}
+
+Реализация глобального обработчика ошибок
+// Файл: exception/GlobalExceptionHandler.java
+@ControllerAdvice
+public class GlobalExceptionHandler {
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<StatusResponse> handleResourceNotFound(ResourceNotFoundException ex) {
+        return ResponseEntity
+            .status(HttpStatus.NOT_FOUND)
+            .body(new StatusResponse("error", ex.getMessage()));
+    }
+    
+    // Этот обработчик перехватывает ошибки валидации DTO (@Valid)
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<StatusResponse> handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
+        String errorMessage = ex.getBindingResult().getFieldErrors().stream()
+            .map(fieldError -> fieldError.getField() + ": " + fieldError.getDefaultMessage())
+            .collect(Collectors.joining("; "));
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(new StatusResponse("error", errorMessage));
+    }
+}
+
+Мы создали самодостаточный, хорошо документированный и отказоустойчивый контракт. Его можно упаковать в .jar-архив и подключить к основному приложению, которое будет реализовывать интерфейс BookApi.
+Задания для самостоятельной Работы 
+Вы должны реализовать контракты на основе данного примера уже для своего основного сервиса. Для других языков и фреймворков поступите так же – возьмите интерфейсы за основу. В C# можно воспользоваться атрибутами для требований OpenAPI аналогично аннотациям в java. В завершении у вас должен быть проект, который описывает все DTO и интерфейсы контроллеров как требование к вашему основному API сервису. Подключите данный проект к реализации и реализуйте все интерфейсы.
+

@@ -1,0 +1,80 @@
+type Query {
+    clients: [Client]
+    clientById(id: ID!): Client
+    tables(typeFilter: String): [Table]
+    tableById(id: ID!): Table
+    reservations(clientId: ID, tableId: ID, status: String, tableType: String, page: Int = 0, size: Int = 10): ReservationPage
+    reservationById(id: ID!): Reservation
+}
+
+type Mutation {
+    createClient(input: ClientInput!): Client
+    updateClient(id: ID!, input: ClientInput!): Client
+    deleteClient(id: ID!): ID
+    createTable(input: TableInput!): Table
+    updateTable(id: ID!, input: TableInput!): Table
+    toggleTableAvailability(id: ID!, available: Boolean!): Table
+    updateTableType(id: ID!, type: String!): Table  # Новое для задания
+    deleteTable(id: ID!): ID
+    createReservation(input: ReservationInput!): Reservation
+    updateReservation(id: ID!, input: UpdateReservationInput!): Reservation
+    deleteReservation(id: ID!): ID
+}
+
+type Client {
+    id: ID!
+    name: String!
+    email: String!
+    phone: String!
+}
+
+input ClientInput {
+    name: String!
+    email: String!
+    phone: String!
+}
+
+type Table {
+    id: ID!
+    number: String!
+    numberOfSeats: Int!
+    isAvailable: Boolean!
+    type: String  # Новое поле для задания
+}
+
+input TableInput {
+    number: String!
+    numberOfSeats: Int!
+    type: String  # Опционально для create
+}
+
+type Reservation {
+    id: ID!
+    client: Client!
+    table: Table!
+    reservationTime: String!
+    numberOfGuests: Int!
+    status: String!
+    price: Float!
+}
+
+input ReservationInput {
+    clientId: ID!
+    tableId: ID!
+    reservationTime: String!
+    numberOfGuests: Int!
+}
+
+input UpdateReservationInput {
+    reservationTime: String!
+    numberOfGuests: Int!
+}
+
+type ReservationPage {
+    content: [Reservation!]!
+    pageNumber: Int!
+    pageSize: Int!
+    totalElements: Int!
+    totalPages: Int!
+    last: Boolean!
+}

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Уведомления о бронированиях - Ресторан</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f9;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        #status {
+            text-align: center;
+            margin-bottom: 20px;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 4px;
+            color: #dc3545;
+            background-color: #f8d7da;
+        }
+
+        #status.connected {
+            color: #155724;
+            background-color: #d4edda;
+        }
+        .notification {
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 5px solid;
+            border-radius: 4px;
+            animation: slideIn 0.5s ease-out;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .notification.created {
+            background-color: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+        .notification.priced {
+            background-color: #d1ecf1;
+            border-color: #17a2b8;
+            color: #0c5460;
+        }
+        .notification.priced.good {
+            background-color: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+        .notification.priced.bad {
+            background-color: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+        }
+
+                .notification.deleted {
+            background-color: #fff3cd;
+            border-color: #ffc107;
+            color: #856404;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        .notification-header {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 8px;
+        }
+        .notification-body {
+            font-size: 0.95em;
+            line-height: 1.6;
+        }
+        .timestamp {
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+
+
+<body>
+<div class="container">
+    <h2>🔔 Центр уведомлений о бронированиях</h2>
+    <div id="status">Отключено</div>
+    <div id="notifications-area"></div>
+</div>
+
+<script>
+    const statusDiv = document.getElementById('status');
+    const area = document.getElementById('notifications-area');
+    let socket = null;
+    let reconnectAttempts = 0;
+    let reconnectTimer = null;
+    let pingInterval = null;
+    const MAX_RECONNECT_DELAY = 30000; // макс. 30 сек между попытками
+
+    function connect() {
+        // Защита от повторного вызова
+        if (socket && socket.readyState === WebSocket.CONNECTING) {
+            return;
+        }
+
+        // Очищаем предыдущий таймер
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+        }
+
+           // ws:// для http, wss:// для https (продакшен)
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        socket = new WebSocket(`${protocol}//localhost:8083/ws/notifications`);
+
+        socket.onopen = function() {
+            reconnectAttempts = 0; // сброс счетчика при успешном подключении
+            statusDiv.textContent = '✅ Подключено к системе уведомлений';
+            statusDiv.className = 'connected';
+
+            // Запускаем Ping каждые 10 секунд для keep-alive
+            pingInterval = setInterval(() => {
+                if (socket.readyState === WebSocket.OPEN) {
+                    socket.send('PING');
+                }
+            }, 10000);
+        };
+
+        socket.onmessage = function(event) {
+            // Игнорируем PONG ответы
+            if (event.data === 'PONG') {
+                return;
+            }
+
+            try {
+                const data = JSON.parse(event.data);
+                console.log("Получено событие:", data);
+                showNotification(data);
+            } catch (e) {
+                console.error("Ошибка парсинга JSON:", e);
+            }
+        };
+
+
+           socket.onclose = function(event) {
+            statusDiv.textContent = '❌ Соединение разорвано. Переподключение...';
+            statusDiv.className = '';
+
+            // Останавливаем Ping
+            if (pingInterval) {
+                clearInterval(pingInterval);
+                pingInterval = null;
+            }
+
+            scheduleReconnect();
+        };
+
+        socket.onerror = function() {
+            console.error('Ошибка WebSocket соединения');
+        };
+    }
+
+    function scheduleReconnect() {
+        // Exponential backoff: 1s, 2s, 4s, 8s... до MAX_RECONNECT_DELAY
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY);
+        reconnectAttempts++;
+
+        statusDiv.textContent = `Переподключение через ${delay/1000} сек (попытка ${reconnectAttempts})...`;
+        reconnectTimer = setTimeout(connect, delay);
+    }
+
+
+    function showNotification(data) {
+        const div = document.createElement('div');
+        div.className = 'notification';
+
+        let header = '';
+        let body = '';
+        let timestamp = new Date().toLocaleString('ru-RU');
+
+        if (data.type === 'RESERVATION_CREATED') {
+            div.className += ' created';
+            header = '✅ Новое бронирование создано';
+            body = `
+                <strong>ID бронирования:</strong> ${data.reservationId}<br>
+                <strong>Клиент:</strong> ${data.clientName} (ID: ${data.clientId})<br>
+                <strong>Стол:</strong> ${data.tableNumber} (ID: ${data.tableId})<br>
+                <strong>Время:</strong> ${new Date(data.reservationTime).toLocaleString('ru-RU')}<br>
+                <strong>Гостей:</strong> ${data.numberOfGuests}
+            `;
+        } else if (data.type === 'RESERVATION_PRICED') {
+            div.className += ' priced ' + data.verdict.toLowerCase();
+            header = '💰 Цена рассчитана';
+            body = `
+                <strong>ID бронирования:</strong> ${data.reservationId}<br>
+                <strong>Цена:</strong> ${data.price.toFixed(2)} ₽<br>
+                <strong>Вердикт:</strong> ${data.verdict === 'GOOD' ? '✅ Хорошая цена' : '⚠️ Высокая цена'}
+            `;
+        } else if (data.type === 'RESERVATION_DELETED') {
+            div.className += ' deleted';
+            header = '🗑️ Бронирование отменено';
+            body = `
+                <strong>ID бронирования:</strong> ${data.reservationId}
+            `;
+        }
+
+
+    div.innerHTML = `
+            <div class="notification-header">${header}</div>
+            <div class="notification-body">${body}</div>
+            <div class="timestamp">${timestamp}</div>
+        `;
+
+        area.prepend(div); // Добавляем в начало списка
+    }
+
+    // Запуск при загрузке страницы
+    connect();
+</script>
+</body>
+</html>
