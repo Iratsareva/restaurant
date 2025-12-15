@@ -64,6 +64,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock  # Доступ к Docker socket
       - ./:/workspace  # Монтируем проект в Jenkins
     user: root  # Для доступа к Docker socket
+    privileged: true  # Для Docker socket доступа
     networks:
       - microservices-net
     depends_on:
