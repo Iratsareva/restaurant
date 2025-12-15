@@ -1,10 +1,18 @@
 pipeline {
     agent any
 
+
+    tools {
+        maven 'Maven3'  // имя из конфигурации
+    }
+
     environment {
         DOCKER_COMPOSE = 'docker compose'  // Используем новую команду (без дефиса)
         PROJECT_NAME = 'restaurant-project'
     }
+
+
+
 
     stages {
         stage('Checkout') {
@@ -79,7 +87,7 @@ pipeline {
                 echo 'Проверка здоровья сервисов...'
                 script {
                     def services = [
-                        ['name': 'demo-rest', 'port': '8081'],  // Исправлен порт (внешний порт)
+                        ['name': 'demo-rest', 'port': '8080'],
                         ['name': 'reservation-price-service', 'port': '9090'],
                         ['name': 'notification-service', 'port': '8083'],
                         ['name': 'audit-service', 'port': '8082']
