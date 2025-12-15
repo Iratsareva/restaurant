@@ -28,7 +28,7 @@ pipeline {
                 dir('events-contract') {
                     sh './mvnw clean install -DskipTests || mvn clean install -DskipTests'
                 }
-                // Копируем JAR в demo/lib для system scope зависимости
+                // Устанавливаем в локальный репозиторий для использования другими модулями
                 script {
                     sh '''
                         mkdir -p demo/lib
@@ -42,9 +42,9 @@ pipeline {
             steps {
                 echo 'Сборка restaurant_api_contracts...'
                 dir('restaurant_api_contracts') {
-                    sh './mvnw clean install -DskipTests || mvn clean install -DskipTests'
+                    sh './mvnw clean package -DskipTests || mvn clean package -DskipTests'
                 }
-                // Копируем JAR в demo/lib для system scope зависимости
+                // Устанавливаем в локальный репозиторий для использования другими модулями
                 script {
                     sh '''
                         mkdir -p demo/lib
@@ -54,16 +54,25 @@ pipeline {
             }
         }
 
-        stage('Build Services') {
-            parallel {
-                stage('Build demo') {
-                    steps {
-                        echo 'Сборка demo сервиса...'
-                        dir('demo') {
-                            sh './mvnw clean package -DskipTests || mvn clean package -DskipTests'
-                        }
-                    }
+        stage('Build demo') {
+            steps {
+                echo 'Сборка demo сервиса...'
+                // Убеждаемся, что JAR зависимости скопированы
+                script {
+                    sh '''
+                        mkdir -p demo/lib
+                        cp restaurant_api_contracts/target/Restaurant-0.0.1-SNAPSHOT.jar demo/lib/restaurant_api_contracts.jar || true
+                        cp events-contract/target/events-contract-1.0-SNAPSHOT.jar demo/lib/events-contract.jar || true
+                    '''
                 }
+                dir('demo') {
+                    sh './mvnw clean package -DskipTests || mvn clean package -DskipTests'
+                }
+            }
+        }
+
+        stage('Build Other Services') {
+            parallel {
                 stage('Build reservation-price-service') {
                     steps {
                         echo 'Сборка reservation-price-service...'
