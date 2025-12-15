@@ -1,27 +1,29 @@
-# Используем легковесный образ JRE 17 на базе Alpine Linux
-FROM eclipse-temurin:17-jre-alpine
+# Stage 1: Build app
+FROM maven:3.9.9-eclipse-temurin-17 AS builder
 
-# Создаем рабочую директорию
 WORKDIR /app
 
-# Создаем пользователя 'javauser', чтобы не запускать приложение от root (Security Best Practice)
+COPY reservation-price-service/pom.xml .
+COPY reservation-price-service/src src/
+RUN mvn clean package -DskipTests
+
+# Stage 2: Runtime image
+FROM eclipse-temurin:17-jre-alpine
+
+WORKDIR /app
+
 RUN addgroup -S javauser && adduser -S javauser -G javauser
 
-# Аргумент для поиска JAR файла.
-ARG JAR_FILE=target/*.jar
+USER javauser:javauser
 
-# Копируем JAR внутрь образа под именем app.jar
-COPY ${JAR_FILE} app.jar
+COPY --from=builder /app/target/*.jar app.jar
 
-# Меняем владельца файла
 RUN chown javauser:javauser /app/app.jar
 
-# Переключаемся на пользователя
-USER javauser
+USER javauser:javauser
 
-# Документируем порт (gRPC порт)
 EXPOSE 9090
+EXPOSE 9091
 
-# Запускаем приложение
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
 

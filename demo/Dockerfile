@@ -1,27 +1,41 @@
-# Используем легковесный образ JRE 17 на базе Alpine Linux
-FROM eclipse-temurin:17-jre-alpine
+# Этап 1: Сборка зависимостей
+FROM maven:3.9.9-eclipse-temurin-17 AS builder-deps
 
-# Создаем рабочую директорию
+WORKDIR /build
+
+# Сборка restaurant_api_contracts
+COPY restaurant_api_contracts/pom.xml restaurant_api_contracts/
+COPY restaurant_api_contracts/src restaurant_api_contracts/src/
+RUN cd restaurant_api_contracts && mvn clean package -DskipTests
+
+# Сборка events-contract
+COPY events-contract/pom.xml events-contract/
+COPY events-contract/src events-contract/src/
+RUN cd events-contract && mvn clean package -DskipTests
+
+# Этап 2: Сборка demo
+FROM maven:3.9.9-eclipse-temurin-17 AS builder-app
+
 WORKDIR /app
 
-# Создаем пользователя 'javauser', чтобы не запускать приложение от root
+# Копируем и собираем demo (с JAR зависимостей)
+COPY demo/pom.xml .
+COPY demo/src src/
+COPY --from=builder-deps /build/restaurant_api_contracts/target/Restaurant-0.0.1-SNAPSHOT.jar lib/restaurant_api_contracts.jar
+COPY --from=builder-deps /build/events-contract/target/events-contract-1.0-SNAPSHOT.jar lib/events-contract.jar
+RUN mvn clean package -DskipTests
+
+# Этап 3: Runtime-образ
+FROM eclipse-temurin:17-jre-alpine
+
+WORKDIR /app
+
 RUN addgroup -S javauser && adduser -S javauser -G javauser
 
-# Копируем JAR файл (Spring Boot fat JAR уже содержит все зависимости)
-COPY target/*.jar app.jar
+USER javauser:javauser
 
-# Копируем дополнительные JAR зависимости
-COPY lib/*.jar /app/lib/
+COPY --from=builder-app /app/target/*.jar app.jar
 
-# Меняем владельца файлов
-RUN chown -R javauser:javauser /app
-
-# Переключаемся на пользователя
-USER javauser
-
-# Документируем порт
 EXPOSE 8080
 
-# Запускаем приложение
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
-
