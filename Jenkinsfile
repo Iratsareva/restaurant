@@ -42,7 +42,7 @@ pipeline {
             steps {
                 echo 'Сборка restaurant_api_contracts...'
                 dir('restaurant_api_contracts') {
-                    sh './mvnw clean package -DskipTests || mvn clean package -DskipTests'
+                    sh './mvnw clean install -DskipTests || mvn clean install -DskipTests'
                 }
                 // Копируем JAR в demo/lib для system scope зависимости
                 script {
@@ -111,7 +111,7 @@ pipeline {
                 script {
                     def services = [
                         ['name': 'demo-rest', 'port': '8080'],
-                        ['name': 'reservation-price-service', 'port': '9090'],
+                        ['name': 'reservation-price-service', 'port': '9092'],
                         ['name': 'notification-service', 'port': '8083'],
                         ['name': 'audit-service', 'port': '8082']
                     ]
@@ -178,11 +178,15 @@ pipeline {
         success {
             echo 'Pipeline выполнен успешно!'
             echo 'Сервисы доступны:'
-            echo '  - Jenkins: http://localhost:8080'
-            echo '  - Demo REST: http://localhost:8081'
+            echo '  - Demo REST API: http://localhost:8081'
+            echo '  - Audit Service: http://localhost:8082'
+            echo '  - Notification Service: http://localhost:8083'
+            echo '  - Reservation Price gRPC: localhost:9090'
             echo '  - Prometheus: http://localhost:9091'
             echo '  - Grafana: http://localhost:3000 (admin/admin)'
             echo '  - Zipkin: http://localhost:9411'
+            echo '  - RabbitMQ: http://localhost:15672 (guest/guest)'
+            echo '  - PostgreSQL: localhost:5435'
         }
         failure {
             echo 'Pipeline завершился с ошибкой!'

@@ -10,6 +10,6 @@ scrape_configs:
             "demo-rest:8080",  # Внутренний порт контейнера (не изменяется)
             "notification-service:8083",
             "audit-service:8082",
-            "reservation-price-service:9090",
+            "reservation-price-service:9091",  # Внутренний порт контейнера
           ]
 

@@ -74,6 +74,7 @@ services:
     build: ./reservation-price-service
     ports:
       - "9090:9090" # gRPC порт
+      - "9092:9091" # HTTP порт для actuator
     environment:
       - SPRING_RABBITMQ_HOST=rabbitmq
       - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
