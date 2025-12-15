@@ -54,3 +54,4 @@ echo ""
 echo "Для просмотра полных логов выполните:"
 echo "  docker-compose logs"
 
+

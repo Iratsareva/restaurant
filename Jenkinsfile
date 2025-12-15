@@ -28,6 +28,29 @@ pipeline {
                 dir('events-contract') {
                     sh './mvnw clean install -DskipTests || mvn clean install -DskipTests'
                 }
+                // Копируем JAR в demo/lib для system scope зависимости
+                script {
+                    sh '''
+                        mkdir -p demo/lib
+                        cp events-contract/target/events-contract-1.0-SNAPSHOT.jar demo/lib/events-contract.jar || true
+                    '''
+                }
+            }
+        }
+        
+        stage('Build restaurant_api_contracts') {
+            steps {
+                echo 'Сборка restaurant_api_contracts...'
+                dir('restaurant_api_contracts') {
+                    sh './mvnw clean package -DskipTests || mvn clean package -DskipTests'
+                }
+                // Копируем JAR в demo/lib для system scope зависимости
+                script {
+                    sh '''
+                        mkdir -p demo/lib
+                        cp restaurant_api_contracts/target/Restaurant-0.0.1-SNAPSHOT.jar demo/lib/restaurant_api_contracts.jar || true
+                    '''
+                }
             }
         }
 

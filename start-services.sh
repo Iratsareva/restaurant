@@ -48,3 +48,4 @@ docker-compose ps
 echo ""
 echo "✅ Запуск завершен!"
 
+
