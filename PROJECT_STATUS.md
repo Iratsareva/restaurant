@@ -8,7 +8,7 @@
 
 ### 2. Docker Compose
 - ✅ Создан `docker-compose.yml` со всеми сервисами:
-  - demo-rest (порт 8080)
+  - demo-rest (порт 8081 внешний, 8080 внутренний)
   - reservation-price-service (порт 9090)
   - notification-service (порт 8083)
   - audit-service (порт 8082)

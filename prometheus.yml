@@ -7,7 +7,7 @@ scrape_configs:
     static_configs:
       - targets:
           [
-            "demo-rest:8080",
+            "demo-rest:8080",  # Внутренний порт контейнера (не изменяется)
             "notification-service:8083",
             "audit-service:8082",
             "reservation-price-service:9090",

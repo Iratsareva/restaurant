@@ -34,7 +34,7 @@ docker-compose up --build -d
 
 Откройте в браузере:
 
-- **Demo REST API**: http://localhost:8080
+- **Demo REST API**: http://localhost:8081 (порт изменен, чтобы не конфликтовать с Jenkins)
 - **Prometheus**: http://localhost:9091
 - **Grafana**: http://localhost:3000 (логин: `admin`, пароль: `admin`)
 - **Zipkin**: http://localhost:9411

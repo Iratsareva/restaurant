@@ -51,6 +51,24 @@ services:
     networks:
       - microservices-net
 
+  # CI/CD: Jenkins
+  jenkins:
+    image: jenkins/jenkins:lts
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    environment:
+      - JENKINS_OPTS=--httpPort=8080
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock  # Доступ к Docker socket
+      - ./:/workspace  # Монтируем проект в Jenkins
+    user: root  # Для доступа к Docker socket
+    networks:
+      - microservices-net
+    depends_on:
+      - rabbitmq
+
   # Микросервисы
   reservation-price-service:
     build: ./reservation-price-service
@@ -96,7 +114,7 @@ services:
   demo-rest:
     build: ./demo
     ports:
-      - "8080:8080"
+      - "8081:8080"  # Изменен внешний порт, чтобы не конфликтовать с Jenkins
     environment:
       - SPRING_RABBITMQ_HOST=rabbitmq
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/restaurant_db
@@ -141,4 +159,5 @@ networks:
 volumes:
   postgres_data:
   grafana_data:
+  jenkins_home:
 

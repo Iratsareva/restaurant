@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     environment {
+        PROJECT_DIR = '/workspace'
         DOCKER_COMPOSE = 'docker compose'  // Используем новую команду (без дефиса)
         PROJECT_NAME = 'restaurant-project'
     }
@@ -9,15 +10,20 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                echo 'Получение кода из Git...'
-                checkout scm
+                echo 'Используем локальный проект из /workspace...'
+                sh """
+                    echo 'Содержимое рабочей директории:'
+                    ls -la ${PROJECT_DIR}
+                    echo 'Переходим в директорию проекта'
+                    cd ${PROJECT_DIR}
+                """
             }
         }
 
         stage('Build events-contract') {
             steps {
                 echo 'Сборка events-contract...'
-                dir('events-contract') {
+                dir("${PROJECT_DIR}/events-contract") {
                     sh './mvnw clean install -DskipTests || mvn clean install -DskipTests'
                 }
             }
@@ -28,7 +34,7 @@ pipeline {
                 stage('Build demo') {
                     steps {
                         echo 'Сборка demo сервиса...'
-                        dir('demo') {
+                        dir("${PROJECT_DIR}/demo") {
                             sh './mvnw clean package -DskipTests || mvn clean package -DskipTests'
                         }
                     }
@@ -36,7 +42,7 @@ pipeline {
                 stage('Build reservation-price-service') {
                     steps {
                         echo 'Сборка reservation-price-service...'
-                        dir('reservation-price-service') {
+                        dir("${PROJECT_DIR}/reservation-price-service") {
                             sh './mvnw clean package -DskipTests || mvn clean package -DskipTests'
                         }
                     }
@@ -44,7 +50,7 @@ pipeline {
                 stage('Build notification-service') {
                     steps {
                         echo 'Сборка notification-service...'
-                        dir('notification-service/notification-service') {
+                        dir("${PROJECT_DIR}/notification-service/notification-service") {
                             sh './mvnw clean package -DskipTests || mvn clean package -DskipTests'
                         }
                     }
@@ -52,7 +58,7 @@ pipeline {
                 stage('Build audit-service') {
                     steps {
                         echo 'Сборка audit-service...'
-                        dir('audit-service/audit-service') {
+                        dir("${PROJECT_DIR}/audit-service/audit-service") {
                             sh './mvnw clean package -DskipTests || mvn clean package -DskipTests'
                         }
                     }
@@ -63,14 +69,18 @@ pipeline {
         stage('Docker Build') {
             steps {
                 echo 'Сборка Docker образов...'
-                sh '${DOCKER_COMPOSE} build --no-cache'
+                dir(PROJECT_DIR) {
+                    sh '${DOCKER_COMPOSE} build --no-cache'
+                }
             }
         }
 
         stage('Docker Compose Up') {
             steps {
                 echo 'Запуск всех сервисов через Docker Compose...'
-                sh '${DOCKER_COMPOSE} up -d'
+                dir(PROJECT_DIR) {
+                    sh '${DOCKER_COMPOSE} up -d'
+                }
             }
         }
 
@@ -141,8 +151,7 @@ pipeline {
 
     post {
         always {
-            echo 'Очистка...'
-            sh '${DOCKER_COMPOSE} down || true'
+            echo 'Pipeline выполнен'
         }
         success {
             echo 'Pipeline выполнен успешно!'
@@ -155,7 +164,9 @@ pipeline {
         }
         failure {
             echo 'Pipeline завершился с ошибкой!'
-            sh '${DOCKER_COMPOSE} logs --tail=100'
+            dir(PROJECT_DIR) {
+                sh '${DOCKER_COMPOSE} logs --tail=100 || true'
+            }
         }
     }
 }
