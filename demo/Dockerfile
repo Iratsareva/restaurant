@@ -10,6 +10,9 @@ RUN addgroup -S javauser && adduser -S javauser -G javauser
 # Копируем JAR файл (Spring Boot fat JAR уже содержит все зависимости)
 COPY target/*.jar app.jar
 
+# Копируем дополнительные JAR зависимости
+COPY lib/*.jar /app/lib/
+
 # Меняем владельца файлов
 RUN chown -R javauser:javauser /app
 

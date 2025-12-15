@@ -1,5 +1,5 @@
-# Используем легковесный образ JRE 21 на базе Alpine Linux
-FROM eclipse-temurin:21-jre-alpine
+# Используем легковесный образ JRE 17 на базе Alpine Linux
+FROM eclipse-temurin:17-jre-alpine
 
 # Создаем рабочую директорию
 WORKDIR /app
