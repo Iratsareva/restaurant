@@ -32,11 +32,9 @@
 
 
 		<dependency>
-			<groupId>com.example</groupId>  <!-- groupId из pom.xml контрактов -->
-			<artifactId>Restaurant</artifactId>  <!-- artifactId проекта контрактов -->
-			<version>0.0.1-SNAPSHOT</version>  <!-- Версия из pom.xml контрактов -->
-			<scope>system</scope>  <!-- Для локального JAR -->
-			<systemPath>${project.basedir}/lib/restaurant_api_contracts.jar</systemPath>  <!-- Путь к JAR -->
+			<groupId>com.example</groupId>
+			<artifactId>Restaurant</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 
 		<dependency>
@@ -178,8 +176,6 @@
 			<groupId>org.example.restaurant</groupId>
 			<artifactId>events-contract</artifactId>
 			<version>1.0-SNAPSHOT</version>
-			<scope>system</scope>  <!-- Используем локальный JAR -->
-			<systemPath>${project.basedir}/lib/events-contract.jar</systemPath>
 		</dependency>
 
 		<!-- Actuator и мониторинг -->
