@@ -12,7 +12,7 @@ docker volume rm restaurant_jenkins_docker_data 2>nul
 echo Jenkins volumes очищены
 echo.
 
-echo Шаг 3: Пересобираем Jenkins образ (--no-cache, скрипт встроен в Dockerfile)
+echo Шаг 3: Пересобираем Jenkins образ (--no-cache, используем Jenkins + Docker CLI)
 docker compose build --no-cache jenkins
 echo.
 

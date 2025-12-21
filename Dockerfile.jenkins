@@ -1,5 +1,17 @@
-# Jenkins с Docker-in-Docker
-FROM docker:dind
+# Используем готовый Jenkins образ с Docker
+FROM jenkins/jenkins:lts
+
+# Устанавливаем Docker CLI
+USER root
+RUN apt-get update && \
+    apt-get install -y curl gnupg lsb-release && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+    apt-get update && \
+    apt-get install -y docker-ce-cli docker-compose-plugin
+
+# Возвращаемся к пользователю jenkins
+USER jenkins
 
 # Устанавливаем Jenkins и необходимые пакеты
 RUN apk add --no-cache \
@@ -17,46 +29,14 @@ RUN wget -O /usr/share/jenkins/jenkins.war https://updates.jenkins.io/download/w
 # Создаем директорию для Jenkins home
 RUN mkdir -p /var/jenkins_home
 
-# Создаем скрипт запуска в корне (более надежно)
-RUN cat > /jenkins-entrypoint.sh << 'EOF'
-#!/bin/bash
-
-# Запускаем Docker daemon в фоне
-dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2376 &
-
-# Ждем пока Docker daemon запустится
-echo "Waiting for Docker daemon to start..."
-sleep 10
-
-# Проверяем что Docker работает
-if docker info >/dev/null 2>&1; then
-    echo "Docker daemon is running"
-else
-    echo "Docker daemon failed to start"
-    exit 1
-fi
-
-# Создаем пользователя jenkins если его нет
-if ! id jenkins >/dev/null 2>&1; then
-    adduser -D -h /var/jenkins_home -s /bin/bash jenkins
-    addgroup jenkins docker
-    chown -R jenkins:jenkins /var/jenkins_home
-fi
-
-# Устанавливаем переменные окружения для Jenkins
-export JENKINS_HOME=/var/jenkins_home
-export JAVA_OPTS="-Djenkins.install.runSetupWizard=false"
-
-# Запускаем Jenkins от имени root (для простоты)
-echo "Starting Jenkins..."
-exec java -jar /usr/share/jenkins/jenkins.war --httpPort=8080 --prefix=""
-EOF
-
-RUN chmod +x /jenkins-entrypoint.sh && \
-    ls -la /jenkins-entrypoint.sh && \
-    head -5 /jenkins-entrypoint.sh
+# Создаем простой скрипт запуска Jenkins
+RUN echo '#!/bin/bash\n\
+echo "Starting Jenkins..."\n\
+export JAVA_OPTS="-Djenkins.install.runSetupWizard=false"\n\
+exec /usr/local/bin/jenkins.sh' > /jenkins-entrypoint.sh && \
+    chmod +x /jenkins-entrypoint.sh
 
 EXPOSE 8080 50000
 
-# Используем CMD для запуска скрипта из корня
-CMD ["/jenkins-entrypoint.sh"]
+# Переопределяем entrypoint полностью
+ENTRYPOINT ["/jenkins-entrypoint.sh"]

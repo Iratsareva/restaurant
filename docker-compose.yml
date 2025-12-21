@@ -67,12 +67,13 @@ services:
       - "50000:50000"
     environment:
       - JENKINS_OPTS=--httpPort=8080
+      - DOCKER_HOST=unix:///var/run/docker.sock
     volumes:
       - jenkins_home:/var/jenkins_home
       - ./:/workspace  # Монтируем проект в Jenkins
-      - jenkins_docker_data:/var/lib/docker  # Docker данные
-    user: root
-    privileged: true  # Обязательно для Docker-in-Docker
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker socket хоста
+    user: root  # Нужен root для доступа к Docker socket
+    entrypoint: ["/jenkins-entrypoint.sh"]  # Явно указываем entrypoint
     networks:
       - microservices-net
     depends_on:
