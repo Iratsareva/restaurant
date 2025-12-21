@@ -26,8 +26,8 @@ docker compose down
 docker volume rm restaurant_jenkins_home 2>/dev/null || true
 docker volume rm restaurant_jenkins_docker_data 2>/dev/null || true
 
-# 4. Пересобрать Jenkins образ
-docker compose build jenkins
+# 4. Пересобрать Jenkins образ (с очисткой кеша)
+docker compose build --no-cache jenkins
 
 # 5. Запустить Jenkins заново
 docker compose up -d jenkins

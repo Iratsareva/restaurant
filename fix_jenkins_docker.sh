@@ -12,8 +12,8 @@ docker volume rm restaurant_jenkins_home 2>/dev/null && echo "Volume restaurant_
 docker volume rm restaurant_jenkins_docker_data 2>/dev/null && echo "Volume restaurant_jenkins_docker_data удален"
 echo
 
-echo "Шаг 3: Пересобираем Jenkins образ"
-docker compose build jenkins
+echo "Шаг 3: Пересобираем Jenkins образ (--no-cache)"
+docker compose build --no-cache jenkins
 echo
 
 echo "Шаг 4: Запускаем Jenkins"

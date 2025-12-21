@@ -8,6 +8,7 @@ RUN apk add --no-cache \
     bash \
     git \
     maven \
+    su-exec \
     && mkdir -p /usr/share/jenkins
 
 # Скачиваем Jenkins WAR
@@ -16,19 +17,9 @@ RUN wget -O /usr/share/jenkins/jenkins.war https://updates.jenkins.io/download/w
 # Создаем директорию для Jenkins home
 RUN mkdir -p /var/jenkins_home
 
-# Создаем пользователя jenkins
-RUN adduser -D -h /var/jenkins_home -s /bin/bash jenkins && \
-    addgroup jenkins docker
-
-# Устанавливаем права
-RUN chown -R jenkins:jenkins /var/jenkins_home
-
 # Копируем скрипт запуска
 COPY jenkins-entrypoint.sh /usr/local/bin/jenkins-entrypoint.sh
 RUN chmod +x /usr/local/bin/jenkins-entrypoint.sh
-
-# Переключаемся на пользователя jenkins
-USER jenkins
 
 EXPOSE 8080 50000
 
