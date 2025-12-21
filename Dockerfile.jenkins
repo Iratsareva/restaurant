@@ -17,9 +17,39 @@ RUN wget -O /usr/share/jenkins/jenkins.war https://updates.jenkins.io/download/w
 # Создаем директорию для Jenkins home
 RUN mkdir -p /var/jenkins_home
 
-# Копируем скрипт запуска
-COPY jenkins-entrypoint.sh /usr/local/bin/jenkins-entrypoint.sh
-RUN chmod +x /usr/local/bin/jenkins-entrypoint.sh
+# Создаем скрипт запуска
+RUN echo '#!/bin/bash\n\
+\n\
+# Запускаем Docker daemon в фоне (от root)\n\
+dockerd --host=unix:///var/run/docker.sock --host=tcp://0.0.0.0:2376 &\n\
+\n\
+# Ждем пока Docker daemon запустится\n\
+echo "Waiting for Docker daemon to start..."\n\
+sleep 10\n\
+\n\
+# Проверяем что Docker работает\n\
+if docker info >/dev/null 2>&1; then\n\
+    echo "Docker daemon is running"\n\
+else\n\
+    echo "Docker daemon failed to start"\n\
+    exit 1\n\
+fi\n\
+\n\
+# Создаем пользователя jenkins если его нет\n\
+if ! id jenkins >/dev/null 2>&1; then\n\
+    adduser -D -h /var/jenkins_home -s /bin/bash jenkins\n\
+    addgroup jenkins docker\n\
+    chown -R jenkins:jenkins /var/jenkins_home\n\
+fi\n\
+\n\
+# Устанавливаем переменные окружения для Jenkins\n\
+export JENKINS_HOME=/var/jenkins_home\n\
+export JAVA_OPTS="-Djenkins.install.runSetupWizard=false"\n\
+\n\
+# Запускаем Jenkins от имени jenkins пользователя\n\
+echo "Starting Jenkins..."\n\
+exec su-exec jenkins java -jar /usr/share/jenkins/jenkins.war --httpPort=8080 --prefix=""' > /usr/local/bin/jenkins-entrypoint.sh && \
+    chmod +x /usr/local/bin/jenkins-entrypoint.sh
 
 EXPOSE 8080 50000
 
