@@ -28,21 +28,21 @@ echo "Шаг 6: Проверяем статус Jenkins"
 docker compose ps jenkins
 echo
 
-echo "Шаг 7: Проверяем Docker в Jenkins контейнере"
-echo "Подключаемся к Jenkins для проверки Docker..."
+echo "Шаг 7: Проверяем что Jenkins запустился"
+if docker compose exec jenkins ps aux | grep -q java; then
+    echo "УСПЕХ: Jenkins процесс запущен"
+else
+    echo "ОШИБКА: Jenkins не запустился"
+    echo "Проверьте логи: docker compose logs jenkins"
+fi
+echo
+
+echo "Шаг 8: Проверяем Docker в Jenkins контейнере"
 if docker compose exec jenkins docker --version >/dev/null 2>&1; then
     echo "УСПЕХ: Docker доступен в Jenkins"
 else
     echo "ОШИБКА: Docker не доступен в Jenkins"
     echo "Проверьте логи: docker compose logs jenkins"
-fi
-echo
-
-echo "Шаг 8: Проверяем Docker Compose"
-if docker compose exec jenkins docker compose version >/dev/null 2>&1; then
-    echo "УСПЕХ: Docker Compose доступен в Jenkins"
-else
-    echo "ОШИБКА: Docker Compose не доступен в Jenkins"
 fi
 echo
 

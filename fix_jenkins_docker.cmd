@@ -28,23 +28,23 @@ echo Шаг 6: Проверяем статус Jenkins
 docker compose ps jenkins
 echo.
 
-echo Шаг 7: Проверяем Docker в Jenkins контейнере
-echo Подключаемся к Jenkins для проверки Docker...
+echo Шаг 7: Проверяем что Jenkins запустился
+docker compose exec jenkins ps aux | findstr java
+if %errorlevel% neq 0 (
+    echo ОШИБКА: Jenkins не запустился
+    echo Проверьте логи: docker compose logs jenkins
+) else (
+    echo УСПЕХ: Jenkins процесс запущен
+)
+echo.
+
+echo Шаг 8: Проверяем Docker в Jenkins контейнере
 docker compose exec jenkins docker --version
 if %errorlevel% neq 0 (
     echo ОШИБКА: Docker не доступен в Jenkins
     echo Проверьте логи: docker compose logs jenkins
 ) else (
     echo УСПЕХ: Docker доступен в Jenkins
-)
-echo.
-
-echo Шаг 8: Проверяем Docker Compose
-docker compose exec jenkins docker compose version
-if %errorlevel% neq 0 (
-    echo ОШИБКА: Docker Compose не доступен в Jenkins
-) else (
-    echo УСПЕХ: Docker Compose доступен в Jenkins
 )
 echo.
 
