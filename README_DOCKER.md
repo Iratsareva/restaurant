@@ -5,24 +5,19 @@
 1. Установленный Docker и Docker Compose
 2. Maven установлен в системе
 
-## Шаг 1: Сборка events-contract в локальный Maven репозиторий
+## ⚠️ Важно: Установка зависимостей (обязательно на новом устройстве)
 
-Перед сборкой всех сервисов необходимо установить events-contract в локальный Maven репозиторий:
+**Перед запуском проекта на новом устройстве выполните установку локальных зависимостей:**
 
-```bash
-cd events-contract
-mvn clean install
-```
+Смотрите подробную инструкцию: [DEPENDENCIES_SETUP.md](DEPENDENCIES_SETUP.md)
 
-Или для Windows:
-```bash
-cd events-contract
-.\mvnw.cmd clean install
-```
+### Быстрая установка:
+- **Windows**: `install-dependencies.cmd`
+- **Linux/Mac**: `./install-dependencies.sh`
 
-## Шаг 2: Сборка всех сервисов
+## Шаг 1: Запуск всех сервисов
 
-Перед запуском Docker Compose необходимо собрать все проекты в .jar файлы:
+После установки зависимостей запустите проект:
 
 ### Для Linux/Mac:
 ```bash

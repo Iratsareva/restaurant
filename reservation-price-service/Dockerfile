@@ -3,8 +3,8 @@ FROM maven:3.9.9-eclipse-temurin-17 AS builder
 
 WORKDIR /app
 
-COPY reservation-price-service/pom.xml .
-COPY reservation-price-service/src src/
+COPY reservation-price-service/pom.xml pom.xml
+COPY reservation-price-service/src src
 RUN mvn clean package -DskipTests
 
 # Stage 2: Runtime image
@@ -26,4 +26,3 @@ EXPOSE 9090
 EXPOSE 9091
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
-

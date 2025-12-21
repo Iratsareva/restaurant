@@ -1,31 +1,27 @@
 # Этап 1: Сборка зависимостей
-FROM maven:3.9.9-eclipse-temurin-17 AS builder-deps
-
-WORKDIR /build
-
-# Сборка restaurant_api_contracts
-COPY restaurant_api_contracts/pom.xml restaurant_api_contracts/
-COPY restaurant_api_contracts/src restaurant_api_contracts/src/
-RUN cd restaurant_api_contracts && mvn clean package -DskipTests
-
-# Сборка events-contract
-COPY events-contract/pom.xml events-contract/
-COPY events-contract/src events-contract/src/
-RUN cd events-contract && mvn clean package -DskipTests
-
-# Этап 2: Сборка demo
-FROM maven:3.9.9-eclipse-temurin-17 AS builder-app
+# Этап 1: Сборка всех зависимостей и demo
+FROM maven:3.9.9-eclipse-temurin-17 AS builder
 
 WORKDIR /app
 
-# Копируем и собираем demo (с JAR зависимостей)
-COPY demo/pom.xml .
-COPY demo/src src/
-COPY --from=builder-deps /build/restaurant_api_contracts/target/Restaurant-0.0.1-SNAPSHOT.jar lib/restaurant_api_contracts.jar
-COPY --from=builder-deps /build/events-contract/target/events-contract-1.0-SNAPSHOT.jar lib/events-contract.jar
-RUN mvn clean package -DskipTests
+# 1. Собираем и устанавливаем restaurant_api_contracts в локальный Maven-репозиторий
+COPY restaurant_api_contracts/pom.xml restaurant_api_contracts/pom.xml
+COPY restaurant_api_contracts/src restaurant_api_contracts/src
+RUN mvn -f restaurant_api_contracts/pom.xml clean install -DskipTests
 
-# Этап 3: Runtime-образ
+# 2. Собираем и устанавливаем events-contract в локальный Maven-репозиторий
+COPY events-contract/pom.xml events-contract/pom.xml
+COPY events-contract/src events-contract/src
+RUN mvn -f events-contract/pom.xml clean install -DskipTests
+
+# 3. Собираем demo, используя артефакты из локального Maven-репозитория
+COPY demo/pom.xml demo/pom.xml
+COPY demo/src demo/src
+COPY demo/src/main/proto demo/src/main/proto
+COPY demo/lib demo/lib
+RUN mvn -f demo/pom.xml clean package -DskipTests
+
+# Этап 2: Runtime-образ
 FROM eclipse-temurin:17-jre-alpine
 
 WORKDIR /app
@@ -34,7 +30,7 @@ RUN addgroup -S javauser && adduser -S javauser -G javauser
 
 USER javauser:javauser
 
-COPY --from=builder-app /app/target/*.jar app.jar
+COPY --from=builder /app/demo/target/*.jar app.jar
 
 EXPOSE 8080
 
