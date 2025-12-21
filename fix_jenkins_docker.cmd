@@ -1,40 +1,50 @@
 @echo off
-echo Исправление Jenkins Docker проблемы...
+echo Исправление Jenkins Docker-in-Docker проблемы...
 echo.
 
 echo Шаг 1: Останавливаем все сервисы
 docker compose down
 echo.
 
-echo Шаг 2: Удаляем Jenkins volume (если существует)
+echo Шаг 2: Удаляем Jenkins volumes (если существуют)
 docker volume rm restaurant_jenkins_home 2>nul
-if %errorlevel% neq 0 (
-    echo Volume restaurant_jenkins_home не найден или уже удален
-) else (
-    echo Volume restaurant_jenkins_home удален
-)
+docker volume rm restaurant_jenkins_docker_data 2>nul
+echo Jenkins volumes очищены
 echo.
 
-echo Шаг 3: Запускаем Jenkins
+echo Шаг 3: Пересобираем Jenkins образ
+docker compose build jenkins
+echo.
+
+echo Шаг 4: Запускаем Jenkins
 docker compose up -d jenkins
 echo.
 
-echo Шаг 4: Ждем запуска Jenkins (30 секунд)...
-timeout /t 30 /nobreak > nul
+echo Шаг 5: Ждем запуска Jenkins (60 секунд)...
+timeout /t 60 /nobreak > nul
 echo.
 
-echo Шаг 5: Проверяем статус Jenkins
+echo Шаг 6: Проверяем статус Jenkins
 docker compose ps jenkins
 echo.
 
-echo Шаг 6: Проверяем Docker в Jenkins контейнере
+echo Шаг 7: Проверяем Docker в Jenkins контейнере
 echo Подключаемся к Jenkins для проверки Docker...
 docker compose exec jenkins docker --version
 if %errorlevel% neq 0 (
     echo ОШИБКА: Docker не доступен в Jenkins
-    echo Попробуйте перезапустить Docker Desktop
+    echo Проверьте логи: docker compose logs jenkins
 ) else (
     echo УСПЕХ: Docker доступен в Jenkins
+)
+echo.
+
+echo Шаг 8: Проверяем Docker Compose
+docker compose exec jenkins docker compose version
+if %errorlevel% neq 0 (
+    echo ОШИБКА: Docker Compose не доступен в Jenkins
+) else (
+    echo УСПЕХ: Docker Compose доступен в Jenkins
 )
 echo.
 

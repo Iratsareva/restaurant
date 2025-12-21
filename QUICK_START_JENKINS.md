@@ -7,14 +7,21 @@ Jenkins в Docker полностью функционален и готов к �
 ## ⚠️ СРОЧНО: Если Pipeline падает с "docker: not found"
 
 ```bash
-# 1. Убедиться что Docker Desktop ЗАПУЩЕН!
+# Быстрое исправление:
+# Windows
+fix_jenkins_docker.cmd
 
-# 2. Пересоздать Jenkins
+# Linux/Mac
+./fix_jenkins_docker.sh
+```
+
+Или вручную:
+```bash
 docker compose down
-docker volume rm restaurant_jenkins_home 2>/dev/null || true
+docker volume rm restaurant_jenkins_home restaurant_jenkins_docker_data 2>/dev/null || true
+docker compose build jenkins
 docker compose up -d jenkins
-
-# 3. Подождать 1-2 минуты пока Jenkins запустится
+sleep 60
 ```
 
 Подробности: `ИСПРАВЛЕНИЕ_ОШИБОК_JENKINS.md`

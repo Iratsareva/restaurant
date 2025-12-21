@@ -1,0 +1,35 @@
+# Jenkins с Docker-in-Docker
+FROM docker:dind
+
+# Устанавливаем Jenkins и необходимые пакеты
+RUN apk add --no-cache \
+    openjdk17-jre \
+    curl \
+    bash \
+    git \
+    maven \
+    && mkdir -p /usr/share/jenkins
+
+# Скачиваем Jenkins WAR
+RUN wget -O /usr/share/jenkins/jenkins.war https://updates.jenkins.io/download/war/latest/jenkins.war
+
+# Создаем директорию для Jenkins home
+RUN mkdir -p /var/jenkins_home
+
+# Создаем пользователя jenkins
+RUN adduser -D -h /var/jenkins_home -s /bin/bash jenkins && \
+    addgroup jenkins docker
+
+# Устанавливаем права
+RUN chown -R jenkins:jenkins /var/jenkins_home
+
+# Копируем скрипт запуска
+COPY jenkins-entrypoint.sh /usr/local/bin/jenkins-entrypoint.sh
+RUN chmod +x /usr/local/bin/jenkins-entrypoint.sh
+
+# Переключаемся на пользователя jenkins
+USER jenkins
+
+EXPOSE 8080 50000
+
+ENTRYPOINT ["/usr/local/bin/jenkins-entrypoint.sh"]

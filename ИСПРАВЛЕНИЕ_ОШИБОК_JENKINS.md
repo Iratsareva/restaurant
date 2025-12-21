@@ -15,22 +15,34 @@ Docker CLI не установлен в Jenkins контейнере.
 
 ### Решение (быстрое)
 
-#### Шаг 1: Пересоздать Jenkins с Docker
+#### Шаг 1: Пересоздать Jenkins с Docker-in-Docker
 ```bash
 # 1. Убедиться что Docker Desktop запущен!
 
 # 2. Остановить все сервисы
 docker compose down
 
-# 3. Удалить Jenkins volume (если существует)
-docker volume ls | grep jenkins
+# 3. Удалить Jenkins volumes
 docker volume rm restaurant_jenkins_home 2>/dev/null || true
+docker volume rm restaurant_jenkins_docker_data 2>/dev/null || true
 
-# 4. Запустить Jenkins заново (Docker CLI установится автоматически)
+# 4. Пересобрать Jenkins образ
+docker compose build jenkins
+
+# 5. Запустить Jenkins заново
 docker compose up -d jenkins
 
-# 5. Подождать пока Jenkins запустится (1-2 минуты)
-sleep 30
+# 6. Подождать пока Jenkins запустится (1-2 минуты)
+sleep 60
+```
+
+#### Быстрое исправление (автоматически):
+```bash
+# Windows
+fix_jenkins_docker.cmd
+
+# Linux/Mac
+./fix_jenkins_docker.sh
 ```
 
 #### Шаг 2: Проверить Docker в Jenkins
