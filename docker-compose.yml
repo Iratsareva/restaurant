@@ -71,6 +71,14 @@ services:
       - ./:/workspace  # Монтируем проект в Jenkins
     user: root  # Для доступа к Docker socket и volume
     privileged: true  # Для Docker socket доступа
+    command: >
+      bash -c "
+        apt-get update &&
+        apt-get install -y curl &&
+        curl -fsSL https://get.docker.com | sh &&
+        service docker start &&
+        /usr/local/bin/jenkins.sh
+      "
     networks:
       - microservices-net
     depends_on:

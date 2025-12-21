@@ -1,5 +1,48 @@
 # 🔧 Исправление ошибок в Jenkins Pipeline
 
+## 🚨 СРОЧНО: Ошибка "docker: not found" в Jenkins
+
+### Проблема
+Pipeline падает с ошибкой:
+```
+Stage "Docker Compose Up" skipped due to earlier failure(s)
+docker: not found
+script returned exit code 127
+```
+
+### Причина
+Docker CLI не установлен в Jenkins контейнере.
+
+### Решение (быстрое)
+
+#### Шаг 1: Пересоздать Jenkins с Docker
+```bash
+# Остановить все
+docker compose down
+
+# Удалить старый Jenkins volume
+docker volume rm project_jenkins_home
+
+# Запустить заново (Docker установится автоматически)
+docker compose up -d jenkins
+```
+
+#### Шаг 2: Проверить Docker в Jenkins
+```bash
+# Подключиться к Jenkins
+docker compose exec jenkins bash
+
+# Проверить
+docker --version
+docker compose version
+exit
+```
+
+#### Шаг 3: Перезапустить Pipeline
+В Jenkins: Pipeline → Build Now
+
+---
+
 ## 🚨 Частые ошибки при создании Pipeline "restaurant"
 
 ### Ошибка 1: "mvn: command not found" или "Maven не найден"

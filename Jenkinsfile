@@ -105,12 +105,20 @@ pipeline {
                 echo 'Сборка Docker образов...'
                 script {
                     // Проверяем доступность Docker
-                    def dockerAvailable = sh(script: 'which docker || which docker-compose', returnStatus: true) == 0
+                    def dockerAvailable = sh(script: 'docker --version && docker compose version', returnStatus: true) == 0
                     if (dockerAvailable) {
+                        echo 'Docker доступен, выполняем сборку...'
+                        sh 'docker --version'
+                        sh 'docker compose version'
                         sh '${DOCKER_COMPOSE} build --no-cache'
                     } else {
-                        echo 'Docker не доступен в Jenkins контейнере. Пропускаем сборку образов.'
-                        echo 'Для полной интеграции установите Docker в Jenkins или используйте внешний Docker daemon.'
+                        echo 'Docker не доступен в Jenkins контейнере.'
+                        echo 'Версия Docker:'
+                        sh 'docker --version || echo "docker не найден"'
+                        echo 'Версия Docker Compose:'
+                        sh 'docker compose version || echo "docker compose не найден"'
+                        echo 'Для полной интеграции установите Docker в Jenkins.'
+                        // Не прерываем Pipeline, продолжаем без Docker
                     }
                 }
             }
