@@ -14,8 +14,6 @@ WORKDIR /app
 
 RUN addgroup -S javauser && adduser -S javauser -G javauser
 
-USER javauser:javauser
-
 COPY --from=builder /app/target/*.jar app.jar
 
 RUN chown javauser:javauser /app/app.jar
