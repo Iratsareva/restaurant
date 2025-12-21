@@ -18,7 +18,6 @@ RUN mvn -f events-contract/pom.xml clean install -DskipTests
 COPY demo/pom.xml demo/pom.xml
 COPY demo/src demo/src
 COPY demo/src/main/proto demo/src/main/proto
-COPY demo/lib demo/lib
 RUN mvn -f demo/pom.xml clean package -DskipTests
 
 # Этап 2: Runtime-образ
