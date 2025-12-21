@@ -65,18 +65,19 @@ services:
       - "50000:50000"
     environment:
       - JENKINS_OPTS=--httpPort=8080
+      - DOCKER_HOST=unix:///var/run/docker.sock  # Использовать Docker socket хоста
     volumes:
       - jenkins_home:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock  # Доступ к Docker socket
+      - /var/run/docker.sock:/var/run/docker.sock  # Доступ к Docker socket хоста
       - ./:/workspace  # Монтируем проект в Jenkins
-    user: root  # Для доступа к Docker socket и volume
+    user: root  # Для доступа к Docker socket
     privileged: true  # Для Docker socket доступа
     command: >
       bash -c "
-        apt-get update &&
-        apt-get install -y curl &&
-        curl -fsSL https://get.docker.com | sh &&
-        service docker start &&
+        apt-get update -qq &&
+        apt-get install -y -qq curl docker.io docker-compose-plugin &&
+        groupadd -f docker &&
+        usermod -aG docker jenkins &&
         /usr/local/bin/jenkins.sh
       "
     networks:
