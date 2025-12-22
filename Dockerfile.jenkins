@@ -10,24 +10,16 @@ RUN apt-get update && \
     apt-get update && \
     apt-get install -y docker-ce-cli docker-compose-plugin
 
+# Jenkins уже установлен в базовом образе jenkins/jenkins:lts
+# Создаем простой скрипт запуска Jenkins
+RUN echo '#!/bin/bash\n\
+echo "Starting Jenkins..."\n\
+export JAVA_OPTS="-Djenkins.install.runSetupWizard=false"\n\
+exec /usr/local/bin/jenkins.sh' > /jenkins-entrypoint.sh && \
+    chmod +x /jenkins-entrypoint.sh
+
 # Возвращаемся к пользователю jenkins
 USER jenkins
-
-# Устанавливаем Jenkins и необходимые пакеты
-RUN apk add --no-cache \
-    openjdk17-jre \
-    curl \
-    bash \
-    git \
-    maven \
-    su-exec \
-    && mkdir -p /usr/share/jenkins
-
-# Скачиваем Jenkins WAR
-RUN wget -O /usr/share/jenkins/jenkins.war https://updates.jenkins.io/download/war/latest/jenkins.war
-
-# Создаем директорию для Jenkins home
-RUN mkdir -p /var/jenkins_home
 
 # Создаем простой скрипт запуска Jenkins
 RUN echo '#!/bin/bash\n\

@@ -18,6 +18,7 @@ RUN mvn -f events-contract/pom.xml clean install -DskipTests
 COPY demo/pom.xml demo/pom.xml
 COPY demo/src demo/src
 COPY demo/src/main/proto demo/src/main/proto
+COPY demo/lib demo/lib
 RUN mvn -f demo/pom.xml clean package -DskipTests
 
 # Этап 2: Runtime-образ
@@ -27,11 +28,9 @@ WORKDIR /app
 
 RUN addgroup -S javauser && adduser -S javauser -G javauser
 
-COPY --from=builder /app/demo/target/*.jar app.jar
-
-RUN chown javauser:javauser /app/app.jar
-
 USER javauser:javauser
+
+COPY --from=builder /app/demo/target/*.jar app.jar
 
 EXPOSE 8080
 
