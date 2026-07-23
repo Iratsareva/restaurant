@@ -88,27 +88,6 @@ services:
     networks:
       - microservices-net
 
-  price-client-service:
-    build:
-      context: .  # Корень проекта
-      dockerfile: price-client-service/Dockerfile  # Относительный путь
-    ports:
-      - "8084:8084"
-    environment:
-      - SPRING_RABBITMQ_HOST=rabbitmq
-      - SPRING_RABBITMQ_PORT=5672
-      - SPRING_RABBITMQ_USERNAME=guest
-      - SPRING_RABBITMQ_PASSWORD=guest
-      - GRPC_CLIENT_RESERVATION_PRICE_SERVICE_ADDRESS=static://reservation-price-service:9090
-      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://zipkin:9411/api/v2/spans
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      reservation-price-service:
-        condition: service_started
-    networks:
-      - microservices-net
-
   notification-service:
     build:
       context: .  # Корень проекта
@@ -172,8 +151,6 @@ services:
       redis:
         condition: service_started
       reservation-price-service:
-        condition: service_started
-      price-client-service:
         condition: service_started
       postgres:
         condition: service_healthy

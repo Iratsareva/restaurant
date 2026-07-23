@@ -14,11 +14,11 @@ type Mutation {
     createTable(input: TableInput!): Table
     updateTable(id: ID!, input: TableInput!): Table
     toggleTableAvailability(id: ID!, available: Boolean!): Table
-    updateTableType(id: ID!, type: String!): Table  # Новое для задания
+    updateTableType(id: ID!, type: String!): Table
     deleteTable(id: ID!): ID
     createReservation(input: ReservationInput!): Reservation
     updateReservation(id: ID!, input: UpdateReservationInput!): Reservation
-    updateReservationStatus(id: ID!, status: String!): Reservation  # Изменение статуса бронирования
+    updateReservationStatus(id: ID!, status: String!): Reservation
     deleteReservation(id: ID!): ID
 }
 
@@ -40,13 +40,13 @@ type Table {
     number: String!
     numberOfSeats: Int!
     isAvailable: Boolean!
-    type: String  # Новое поле для задания
+    type: String
 }
 
 input TableInput {
     number: String!
     numberOfSeats: Int!
-    type: String  # Опционально для create
+    type: String
 }
 
 type Reservation {

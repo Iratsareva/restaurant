@@ -17,6 +17,39 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Map;
 
+/**
+ * Слушатель событий RabbitMQ для отправки уведомлений через WebSocket.
+ * 
+ * <p><b>Назначение:</b> Этот класс слушает события из RabbitMQ и отправляет
+ * уведомления всем подключенным WebSocket клиентам в реальном времени.
+ * 
+ * <p><b>Архитектурная роль:</b>
+ * <ul>
+ *   <li><b>Event Consumer</b> - потребитель событий из RabbitMQ</li>
+ *   <li><b>Adapter</b> - адаптер между RabbitMQ и WebSocket</li>
+ *   <li><b>Message Transformer</b> - преобразование событий в JSON уведомления</li>
+ * </ul>
+ * 
+ * <p><b>Поток данных:</b>
+ * <pre>
+ * ReservationService → RabbitMQ → NotificationListener → NotificationHandler → WebSocket клиенты
+ * </pre>
+ * 
+ * <p><b>Обрабатываемые события:</b>
+ * <ul>
+ *   <li>ReservationCreatedEvent - создание бронирования</li>
+ *   <li>ReservationPricedEvent - расчет цены</li>
+ *   <li>ReservationDeletedEvent - удаление бронирования</li>
+ *   <li>ReservationStatusChangedEvent - изменение статуса</li>
+ * </ul>
+ * 
+ * <p><b>Формат уведомлений:</b> JSON объекты с полем "type" и данными события.
+ * 
+ * @author Restaurant System
+ * @version 1.0
+ * @see NotificationHandler
+ * @see org.springframework.amqp.rabbit.annotation.RabbitListener
+ */
 @Component
 public class NotificationListener {
 
@@ -28,9 +61,6 @@ public class NotificationListener {
         this.notificationHandler = notificationHandler;
     }
 
-    /**
-     * Слушает события создания бронирования из restaurant-exchange
-     */
     @RabbitListener(
             bindings = @QueueBinding(
                     value = @Queue(name = "q.notifications.reservation.created", durable = "true"),
@@ -60,10 +90,6 @@ public class NotificationListener {
         }
     }
 
-
-    /**
-     * Слушает события расчета цены из reservation-fanout
-     */
     @RabbitListener(
             bindings = @QueueBinding(
                     value = @Queue(name = "q.notifications.reservation.priced", durable = "true"),
@@ -91,9 +117,6 @@ public class NotificationListener {
     }
 
 
-    /**
-     * Слушает события удаления бронирования из restaurant-exchange
-     */
     @RabbitListener(
             bindings = @QueueBinding(
                     value = @Queue(name = "q.notifications.reservation.deleted", durable = "true"),
@@ -117,9 +140,7 @@ public class NotificationListener {
         }
     }
 
-    /**
-     * Слушает события изменения статуса бронирования из restaurant-exchange
-     */
+
     @RabbitListener(
             bindings = @QueueBinding(
                     value = @Queue(name = "q.notifications.reservation.status.changed", durable = "true"),

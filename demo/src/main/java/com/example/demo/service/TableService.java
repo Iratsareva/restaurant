@@ -12,6 +12,52 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Сервисный класс для управления бизнес-логикой работы со столиками.
+ * 
+ * <p><b>Назначение:</b> Инкапсулирует всю бизнес-логику для работы со столиками ресторана.
+ * Предоставляет CRUD операции и дополнительные методы для управления доступностью и типом столиков.
+ * 
+ * <p><b>Архитектурная роль:</b>
+ * <ul>
+ *   <li><b>Business Logic Layer</b> - слой бизнес-логики для работы со столиками</li>
+ *   <li><b>Data Transformation</b> - преобразование между JPA сущностями и DTO</li>
+ *   <li><b>Business Rules</b> - применение бизнес-правил (например, тип столика по умолчанию)</li>
+ * </ul>
+ * 
+ * <p><b>Основные функции:</b>
+ * <ul>
+ *   <li>Получение списка всех столиков</li>
+ *   <li>Поиск столика по ID</li>
+ *   <li>Создание нового столика</li>
+ *   <li>Обновление данных столика</li>
+ *   <li>Удаление столика</li>
+ *   <li>Изменение доступности столика (toggleAvailability)</li>
+ *   <li>Обновление типа столика (updateType)</li>
+ * </ul>
+ * 
+ * <p><b>Типы столиков:</b>
+ * <ul>
+ *   <li><b>STANDARD</b> - стандартный столик (по умолчанию)</li>
+ *   <li><b>VIP</b> - VIP столик (более высокая цена)</li>
+ *   <li><b>WINDOW</b> - столик у окна</li>
+ *   <li>И другие типы, определяемые бизнес-требованиями</li>
+ * </ul>
+ * 
+ * <p><b>Особенности:</b>
+ * <ul>
+ *   <li>При создании столик автоматически помечается как доступный (isAvailable = true)</li>
+ *   <li>Если тип столика не указан, устанавливается "STANDARD"</li>
+ *   <li>Тип столика влияет на расчет цены бронирования (через gRPC сервис)</li>
+ * </ul>
+ * 
+ * @author Restaurant System
+ * @version 1.0
+ * @see TableRepository
+ * @see TableEntity
+ * @see TableRequest
+ * @see TableResponse
+ */
 @Service
 public class TableService {
     private final TableRepository tableRepository;
@@ -25,7 +71,6 @@ public class TableService {
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
-
     public TableResponse findById(Long id) {
         TableEntity table = tableRepository.findById(id);
         if (table == null) {
@@ -33,14 +78,12 @@ public class TableService {
         }
         return toResponse(table);
     }
-
     public TableResponse create(TableRequest request) {
         TableEntity table = new TableEntity();
         table.setNumber(request.number());
         table.setNumberOfSeats(request.numberOfSeats());
-        table.setAvailable(true); // По умолчанию доступен
-        // Если тип не указан, устанавливаем "STANDARD" по умолчанию
-        table.setType(request.type() != null && !request.type().isBlank() 
+        table.setAvailable(true);
+        table.setType(request.type() != null && !request.type().isBlank()
                 ? request.type() 
                 : "STANDARD");
         table = tableRepository.create(table);
@@ -79,7 +122,6 @@ public class TableService {
         if (table == null) {
             throw new ResourceNotFoundException("Table", id);
         }
-        // Бизнес-логика: e.g., валидация type (если нужно, добавьте check на допустимые значения)
         if (type == null || type.isBlank()) {
             throw new IllegalArgumentException("Type cannot be empty");
         }
@@ -88,8 +130,7 @@ public class TableService {
     }
 
     private TableResponse toResponse(TableEntity table) {
-        // Если тип null, возвращаем "STANDARD" для отображения
-        String tableType = table.getType() != null && !table.getType().isBlank() 
+        String tableType = table.getType() != null && !table.getType().isBlank()
                 ? table.getType() 
                 : "STANDARD";
         return new TableResponse(table.getId(), table.getNumber(), table.getNumberOfSeats(), tableType, table.isAvailable());

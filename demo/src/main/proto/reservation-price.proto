@@ -1,34 +1,137 @@
 syntax = "proto3";
 
+/**
+ * Protocol Buffers (protobuf) схема для gRPC сервиса расчета цены бронирования.
+ * 
+ * <p><b>Что такое Protocol Buffers:</b>
+ * Protocol Buffers (protobuf) - это язык-независимый формат сериализации структурированных данных,
+ * разработанный Google. Используется для эффективной передачи данных между сервисами.
+ * 
+ * <p><b>Что такое gRPC:</b>
+ * gRPC (gRPC Remote Procedure Calls) - это современный фреймворк для создания распределенных систем.
+ * Использует HTTP/2 для транспорта и Protocol Buffers для сериализации данных.
+ * 
+ * <p><b>Преимущества gRPC:</b>
+ * <ul>
+ *   <li>Высокая производительность (бинарный формат, HTTP/2 мультиплексирование)</li>
+ *   <li>Типобезопасность (генерируется код из .proto файла)</li>
+ *   <li>Поддержка потоков (streaming)</li>
+ *   <li>Кросс-языковая совместимость</li>
+ * </ul>
+ * 
+ * <p><b>Опции компиляции:</b>
+ * <ul>
+ *   <li>java_multiple_files = true - каждый message/service в отдельном файле</li>
+ *   <li>java_package - пакет для сгенерированных Java классов</li>
+ *   <li>java_outer_classname - имя внешнего класса-обертки</li>
+ * </ul>
+ * 
+ * <p><b>Структура сервиса:</b>
+ * Определяет два RPC метода:
+ * <ul>
+ *   <li>CalculatePrice - расчет цены при создании бронирования</li>
+ *   <li>UpdatePrice - обновление цены при изменении количества гостей</li>
+ * </ul>
+ * 
+ * @author Restaurant System
+ * @version 1.0
+ * @see <a href="https://grpc.io/">gRPC Documentation</a>
+ * @see <a href="https://developers.google.com/protocol-buffers">Protocol Buffers Documentation</a>
+ */
+
 option java_multiple_files = true;
 option java_package = "org.example.reservationprice";
 option java_outer_classname = "ReservationPriceProto";
 
+/**
+ * gRPC сервис для расчета цены бронирования.
+ * 
+ * <p><b>RPC методы:</b>
+ * <ul>
+ *   <li>CalculatePrice - синхронный расчет цены (блокирующий вызов)</li>
+ *   <li>UpdatePrice - обновление цены при изменении параметров</li>
+ * </ul>
+ * 
+ * <p><b>Тип вызова:</b> Unary RPC (один запрос - один ответ), не streaming.
+ */
 service ReservationPriceService {
-  // Метод расчета цены (основной)
+  /**
+   * Метод расчета цены бронирования (основной метод).
+   * 
+   * <p><b>Использование:</b> Вызывается синхронно при создании бронирования
+   * для немедленного расчета цены.
+   * 
+   * <p><b>Параметры:</b> PriceRequest с данными о бронировании
+   * <p><b>Возвращает:</b> PriceResponse с рассчитанной ценой и вердиктом
+   */
   rpc CalculatePrice (PriceRequest) returns (PriceResponse) {}
-  // Метод обновления цены (из самостоятельного задания №8)
+  
+  /**
+   * Метод обновления цены при изменении параметров бронирования.
+   * 
+   * <p><b>Использование:</b> Вызывается при изменении количества гостей
+   * для пересчета цены.
+   * 
+   * <p><b>Параметры:</b> UpdatePriceRequest с новыми параметрами
+   * <p><b>Возвращает:</b> PriceResponse с обновленной ценой
+   */
   rpc UpdatePrice (UpdatePriceRequest) returns (PriceResponse) {}
 }
 
-// Запрос на расчет цены
+/**
+ * Запрос на расчет цены бронирования.
+ * 
+ * <p><b>Поля:</b>
+ * <ul>
+ *   <li>reservation_id - идентификатор бронирования</li>
+ *   <li>number_of_guests - количество гостей</li>
+ *   <li>table_type - тип столика (STANDARD, VIP и т.д.)</li>
+ *   <li>duration_hours - продолжительность бронирования в часах (обычно 2)</li>
+ * </ul>
+ * 
+ * <p><b>Номера полей:</b> Номера (1, 2, 3, 4) используются для бинарной сериализации
+ * и не должны изменяться после публикации API (breaking change).
+ */
 message PriceRequest {
-  int64 reservation_id = 1;
-  int32 number_of_guests = 2;
-  string table_type = 3;  // Добавлено из самостоятельного задания №8 (расширение модели)
-  int32 duration_hours = 4;  // Продолжительность в часах
+  int64 reservation_id = 1;      // Идентификатор бронирования
+  int32 number_of_guests = 2;    // Количество гостей
+  string table_type = 3;         // Тип столика (STANDARD, VIP и т.д.)
+  int32 duration_hours = 4;      // Продолжительность в часах (обычно 2)
 }
 
-// Ответ с ценой
+/**
+ * Ответ с рассчитанной ценой бронирования.
+ * 
+ * <p><b>Поля:</b>
+ * <ul>
+ *   <li>reservation_id - идентификатор бронирования</li>
+ *   <li>price - рассчитанная цена в рублях</li>
+ *   <li>verdict - вердикт о цене: "AFFORDABLE" (доступная) или "EXPENSIVE" (дорогая)</li>
+ * </ul>
+ * 
+ * <p><b>Вердикт:</b> Определяется на основе порогового значения (обычно 1000 рублей).
+ * Если цена > 1000 - EXPENSIVE, иначе AFFORDABLE.
+ */
 message PriceResponse {
-  int64 reservation_id = 1;
-  double price = 2;
-  string verdict = 3;  // "AFFORDABLE" или "EXPENSIVE"
+  int64 reservation_id = 1;  // Идентификатор бронирования
+  double price = 2;           // Рассчитанная цена в рублях
+  string verdict = 3;         // Вердикт: "AFFORDABLE" или "EXPENSIVE"
 }
 
-// Запрос на обновление цены
+/**
+ * Запрос на обновление цены бронирования.
+ * 
+ * <p><b>Использование:</b> Вызывается при изменении количества гостей
+ * для пересчета цены без изменения других параметров.
+ * 
+ * <p><b>Поля:</b>
+ * <ul>
+ *   <li>reservation_id - идентификатор существующего бронирования</li>
+ *   <li>new_number_of_guests - новое количество гостей</li>
+ * </ul>
+ */
 message UpdatePriceRequest {
-  int64 reservation_id = 1;
-  int32 new_number_of_guests = 2;
+  int64 reservation_id = 1;           // Идентификатор бронирования
+  int32 new_number_of_guests = 2;     // Новое количество гостей
 }
 

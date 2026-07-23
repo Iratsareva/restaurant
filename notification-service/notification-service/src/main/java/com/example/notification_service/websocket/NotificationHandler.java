@@ -12,12 +12,74 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Обработчик WebSocket соединений для доставки уведомлений.
+ * 
+ * <p><b>Назначение:</b> Этот класс управляет WebSocket соединениями и отправляет
+ * уведомления всем подключенным клиентам в реальном времени.
+ * 
+ * <p><b>Архитектурная роль:</b>
+ * <ul>
+ *   <li><b>WebSocket Handler</b> - обработчик WebSocket соединений</li>
+ *   <li><b>Session Manager</b> - управление активными соединениями</li>
+ *   <li><b>Message Broadcaster</b> - широковещательная отправка сообщений</li>
+ * </ul>
+ * 
+ * <p><b>Жизненный цикл соединения:</b>
+ * <ol>
+ *   <li><b>afterConnectionEstablished</b> - клиент подключился, сохраняем сессию</li>
+ *   <li><b>handleTextMessage</b> - обработка сообщений от клиента (например, PING)</li>
+ *   <li><b>broadcast</b> - отправка уведомлений всем клиентам</li>
+ *   <li><b>afterConnectionClosed</b> - клиент отключился, удаляем сессию</li>
+ * </ol>
+ * 
+ * <p><b>Потокобезопасность:</b>
+ * <ul>
+ *   <li>ConcurrentHashMap.newKeySet() - потокобезопасное множество сессий</li>
+ *   <li>synchronized (session) - синхронизация при отправке сообщений</li>
+ *   <li>Позволяет обрабатывать множественные соединения одновременно</li>
+ * </ul>
+ * 
+ * <p><b>Обработка ошибок:</b>
+ * <ul>
+ *   <li>Если сессия закрыта - удаляется из множества</li>
+ *   <li>Если ошибка отправки - сессия удаляется, обработка продолжается</li>
+ *   <li>Все ошибки логируются</li>
+ * </ul>
+ * 
+ * <p><b>PING/PONG:</b> Поддерживает протокол keep-alive. Клиент может отправить
+ * "PING", сервер ответит "PONG" для проверки соединения.
+ * 
+ * <p><b>Широковещательная отправка:</b> Метод broadcast() отправляет сообщение
+ * всем подключенным клиентам одновременно. Используется для уведомлений о событиях.
+ * 
+ * <p><b>Пример использования:</b>
+ * <pre>{@code
+ * // В NotificationListener при получении события из RabbitMQ:
+ * String json = objectMapper.writeValueAsString(message);
+ * notificationHandler.broadcast(json);
+ * 
+ * // Все подключенные WebSocket клиенты получат JSON сообщение
+ * }</pre>
+ * 
+ * <p><b>Ограничения:</b>
+ * <ul>
+ *   <li>Сессии хранятся в памяти - при перезапуске сервера теряются</li>
+ *   <li>Не масштабируется горизонтально (нужен sticky sessions или Redis)</li>
+ *   <li>Для продакшена рекомендуется использовать Redis Pub/Sub для масштабирования</li>
+ * </ul>
+ * 
+ * @author Restaurant System
+ * @version 1.0
+ * @see TextWebSocketHandler
+ * @see WebSocketSession
+ * @see com.example.notification_service.listener.NotificationListener
+ */
 @Component
 public class NotificationHandler extends TextWebSocketHandler {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationHandler.class);
 
-    // Потокобезопасный Set для хранения активных сессий
     private final Set<WebSocketSession> sessions = ConcurrentHashMap.newKeySet();
 
     @Override
@@ -31,8 +93,6 @@ public class NotificationHandler extends TextWebSocketHandler {
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         String payload = message.getPayload();
         log.debug("Сообщение от {}: {}", session.getId(), payload);
-
-        // Обработка Ping/Pong для keep-alive
         if ("PING".equals(payload)) {
             sendMessage(session, new TextMessage("PONG"));
         }
@@ -51,10 +111,7 @@ public class NotificationHandler extends TextWebSocketHandler {
                 session.getId(), exception.getMessage());
         sessions.remove(session);
     }
-    /**
-     * Рассылка сообщения всем подключенным клиентам.
-     * Вызывается из RabbitMQ Listener.
-     */
+
     public int broadcast(String message) {
         TextMessage textMessage = new TextMessage(message);
         int sent = 0;
@@ -64,7 +121,6 @@ public class NotificationHandler extends TextWebSocketHandler {
                 sent++;
             }
         }
-
         log.info("Broadcast: отправлено {}/{} клиентам", sent, sessions.size());
         return sent;
     }
@@ -76,7 +132,6 @@ public class NotificationHandler extends TextWebSocketHandler {
             return false;
         }
         try {
-            // Синхронизация необходима, так как RabbitMQ Listener работает в отдельном потоке
             synchronized (session) {
                 session.sendMessage(message);
             }
@@ -88,7 +143,6 @@ public class NotificationHandler extends TextWebSocketHandler {
         }
     }
 
-    /** Количество активных подключений (для мониторинга) */
     public int getActiveConnections() {
         return sessions.size();
     }

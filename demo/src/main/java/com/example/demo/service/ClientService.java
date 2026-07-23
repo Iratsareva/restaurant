@@ -14,11 +14,45 @@ import java.util.stream.Collectors;
 
 import com.example.demo.models.Client;
 
-
+/**
+ * Сервисный класс для управления бизнес-логикой работы с клиентами.
+ * 
+ * <p><b>Назначение:</b> Инкапсулирует всю бизнес-логику для работы с клиентами ресторана.
+ * Предоставляет CRUD операции (Create, Read, Update, Delete) для управления клиентами.
+ * 
+ * <p><b>Архитектурная роль:</b>
+ * <ul>
+ *   <li><b>Business Logic Layer</b> - слой бизнес-логики для работы с клиентами</li>
+ *   <li><b>Data Transformation</b> - преобразование между JPA сущностями и DTO</li>
+ *   <li><b>Exception Handling</b> - обработка бизнес-исключений</li>
+ * </ul>
+ * 
+ * <p><b>Основные функции:</b>
+ * <ul>
+ *   <li>Получение списка всех клиентов</li>
+ *   <li>Поиск клиента по ID</li>
+ *   <li>Создание нового клиента</li>
+ *   <li>Обновление данных клиента</li>
+ *   <li>Удаление клиента</li>
+ * </ul>
+ * 
+ * <p><b>Паттерны проектирования:</b>
+ * <ul>
+ *   <li><b>Service Layer Pattern</b> - инкапсуляция бизнес-логики</li>
+ *   <li><b>DTO Pattern</b> - использование DTO для передачи данных</li>
+ *   <li><b>Repository Pattern</b> - работа с данными через репозиторий</li>
+ * </ul>
+ * 
+ * @author Restaurant System
+ * @version 1.0
+ * @see ClientRepository
+ * @see Client
+ * @see ClientRequest
+ * @see ClientResponse
+ */
 @Service
 public class ClientService {
     private final ClientRepository clientRepository;
-
     public ClientService(ClientRepository clientRepository) {
         this.clientRepository = clientRepository;
     }

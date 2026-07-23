@@ -80,11 +80,11 @@
             `;
         } else if (data.type === 'RESERVATION_PRICED') {
             div.className = `notification type-PRICED verdict-${data.verdict}`;
+            const verdictLine = data.verdict === 'EXPENSIVE' ? `<br><strong>Доступен подарок!</strong>` : '';
             div.innerHTML = `
                 <strong>Цена рассчитана</strong><br>
                 ID бронирования: <b>${data.reservationId}</b><br>
-                Цена: <b>${data.price.toFixed(2)} ₽</b><br>
-                Вердикт: ${data.verdict}
+                Цена: <b>${data.price.toFixed(2)} ₽</b>${verdictLine}
             `;
         } else if (data.type === 'RESERVATION_DELETED') {
             div.className = 'notification type-DELETED';

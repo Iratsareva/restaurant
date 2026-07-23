@@ -207,12 +207,15 @@
                 <strong>Гостей:</strong> ${data.numberOfGuests}
             `;
         } else if (data.type === 'RESERVATION_PRICED') {
-            div.className += ' priced ' + data.verdict.toLowerCase();
+            // Добавляем CSS класс в зависимости от verdict
+            const verdictClass = data.verdict === 'AFFORDABLE' ? 'good' : 'bad';
+            div.className += ' priced ' + verdictClass;
             header = '💰 Цена рассчитана';
+            // Показываем текст о подарке только для EXPENSIVE, для AFFORDABLE ничего не показываем
+            const verdictLine = data.verdict === 'EXPENSIVE' ? `<strong>🎁 Доступен подарок!</strong>` : '';
             body = `
                 <strong>ID бронирования:</strong> ${data.reservationId}<br>
-                <strong>Цена:</strong> ${data.price.toFixed(2)} ₽<br>
-                <strong>Вердикт:</strong> ${data.verdict === 'GOOD' ? '✅ Хорошая цена' : '⚠️ Высокая цена'}
+                <strong>Цена:</strong> ${data.price.toFixed(2)} ₽${verdictLine ? '<br>' + verdictLine : ''}
             `;
         } else if (data.type === 'RESERVATION_DELETED') {
             div.className += ' deleted';
